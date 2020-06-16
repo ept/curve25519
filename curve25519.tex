@@ -5,6 +5,7 @@
 \usepackage[hidelinks]{hyperref}
 \usepackage{url}
 \usepackage{doi}
+\usepackage{amsmath}
 \usepackage{tikz}
 \urlstyle{rm}
 \begin{document}
@@ -41,6 +42,146 @@ The goal is to fully explain and justify every line of code that appears in the 
 This document assumes only a basic background in discrete mathematics (such as modular arithmetic), and requires no prior knowledge on elliptic curves.
 
 Unlike HACL*~\cite{HACLStar}, which contains a formally verified implementation of Curve25519~\cite{Zinzindohoue:2017fc}, the goal of this document is not so much to verify that TweetNaCl is correct, but rather to learn how Elliptic Curve Cryptography works by carefully studying one particular algorithm and its implementation.
+
+\section{Elliptic Curve Arithmetic}
+
+Curve25519 uses the curve
+\begin{equation}\label{eq:curve}
+y^2 = x^3 + a x^2 + x
+\end{equation}
+which is known as a \emph{Montgomery curve}, with parameter $a = 486662$.
+We will use equation~\eqref{eq:curve} as our starting point; a justification for the use of this equation and the choice of $a$ appear in the Curve25519 paper \cite{Bernstein:2006kw}.
+% TODO can we use Sage to compute the number of points on the curve?
+
+\begin{figure}
+% Points for first plot are computed as follows:
+% a = -1.9
+% xp = 0.1; yp = -sqrt(xp*xp*xp + a*xp*xp + xp)
+% xq = 0.8; yq =  sqrt(xq*xq*xq + a*xq*xq + xq)
+% m = (yq - yp) / (xq - xp)
+% xa = -0.1; ya = yp - m * (xp - xa)
+% xb =  2.0; yb = ya + m * (xb - xa)
+% xc = m*m - a - xp - xq; yc = yp + m * (xc - xp)
+\begin{tikzpicture}[scale=3.0]
+\node at (0.2,-1.5) {(a)};
+\draw [->] (-0.1,0) -- (2.1,0) node[right] {$x$};
+\draw [->] (0,-1.6) -- (0,1.6) node[above] {$y$};
+\draw [color=blue] plot[id=pos,domain=0:2,samples=100] function{ sqrt(x**3 - 1.9*x**2 + x)};
+\draw [color=blue] plot[id=neg,domain=0:2,samples=100] function{-sqrt(x**3 - 1.9*x**2 + x)};
+\draw [color=red] (0.1,-0.28636) circle [radius=1pt] node[below,outer sep=5pt] {$P$};
+\draw [color=red] (0.8, 0.30984) circle [radius=1pt] node[above,outer sep=5pt] {$Q$};
+\draw [color=red] (1.7254, 1.0980) circle [radius=1pt] node[below,outer sep=5pt] {$R$};
+\draw [color=red] (-0.1,-0.45669) -- (2.0,1.331887391631657);
+\end{tikzpicture}
+\hfill
+% Points for the second plot are computed as follows:
+% a = -1.9
+% xp = 0.3; yp = sqrt(xp*xp*xp + a*xp*xp + xp)
+% m = (3*xp*xp + 2*a*xp + 1) / (2*yp)
+% xa = -0.1; ya = yp - m * (xp - xa)
+% xb =  2.0; yb = ya + m * (xb - xa)
+% xc = m*m - a - 2*xp; yc = yp + m * (xc - xp)
+\begin{tikzpicture}[scale=3.0]
+\node at (0.2,-1.5) {(b)};
+\draw [->] (-0.1,0) -- (2.1,0) node[right] {$x$};
+\draw [->] (0,-1.6) -- (0,1.6) node[above] {$y$};
+\draw [color=blue] plot[id=pos,domain=0:2,samples=100] function{ sqrt(x**3 - 1.9*x**2 + x)};
+\draw [color=blue] plot[id=neg,domain=0:2,samples=100] function{-sqrt(x**3 - 1.9*x**2 + x)};
+\draw [color=red] (0.25,0.38324) circle [radius=1pt] node [above,outer sep=5pt] {$P=Q$};
+\draw [color=red] (1.49601,0.76932) circle [radius=1pt] node [below,outer sep=5pt] {$R$};
+\draw [color=red] (-0.1,0.27479) -- (2.0,0.92549);
+\end{tikzpicture}
+\caption{(a) If we draw a line through two points $P=(x_P,y_P)$ and $Q=(x_Q,y_Q)$ on an elliptic curve, where $x_P \neq x_Q$, then that line intersects the curve again in a third point $R$. (b) Generalising to $P=Q$, we draw a tangent to the curve at $P$, which intersects the curve at $R$.}
+\label{fig:curve}
+\end{figure}
+
+\subsection{Straight line intersecting the elliptic curve}
+
+We say that a point $P = (x_P, y_P)$ lies on the curve if $(x_P, y_P)$ is a solution of equation~\eqref{eq:curve}.
+\autoref{fig:curve} shows an example of such a curve.
+Notice that the curve has reflection symmetry around the $x$ axis; more formally, if $(x_P, y_P)$ is on the curve then $(x_P, -y_P)$ is also on the curve.
+This is the case because the variable $y$ appears only in the $y^2$ term in~\eqref{eq:curve}.
+
+For now we will treat $x$ and $y$ as real numbers.
+In cryptography, $x$ and $y$ are in fact integers modulo a large prime, but we will do the following derivation using real numbers as it is easier to visualise.
+It turns out that the end result works with both types of numbers.
+
+If we have two points $P=(x_P,y_P)$ and $Q=(x_Q,y_Q)$ that both lie on the curve, we can draw a straight line through those points.
+If we assume that $x_P \neq x_Q$, then that straight line intersects the curve at some third point $R$, as shown in \autoref{fig:curve}(a).
+We will show shortly that this third point $R$ always exists.
+This straight line is defined by the equation
+\begin{equation}
+y = \lambda x + c \quad\text{ where the slope is }\quad
+\lambda = \frac{y_Q - y_P}{x_Q - x_P} \quad\text{ and the $y$-intercept is }\quad c = y_P - \lambda x_P. \label{eq:line}
+\end{equation}
+
+If $x_P=x_Q$ there are two possibilities: either $y_P=y_Q$, in which case $P=Q$, or $y_P=-y_Q$.
+Consider first the case where $P=Q$.
+In this case we can still define a straight line through $P$ and $Q$, and we choose the slope of the line such that it is a tangent to the curve (i.e.\ it touches the curve at $P$ without crossing it).
+This is the natural generalisation of the slope $(y_Q - y_P)/(x_Q - x_P)$ in the limit as the distance between $P$ and $Q$ tends to zero.
+
+To compute the slope $\lambda$ of this tangent, we can calculate the derivative of the curve equation~\eqref{eq:curve} using the chain rule:
+\begin{align}
+y^2 &= x^3 + a x^2 + x \quad\iff\quad y = \pm\sqrt{x^3 + a x^2 + x}\\
+\lambda = \frac{\mathrm{d}y}{\mathrm{d}x} &= \pm\frac{3x^2 + 2ax + 1}{2\sqrt{x^3 + ax^2 + x}}
+= \pm\frac{3x^2 + 2ax + 1}{2|y|}
+= \frac{3x^2 + 2ax + 1}{2y} \label{eq:derivative}
+\end{align}
+The sign of $\lambda$ in equation~\eqref{eq:derivative} works out correctly for both positive and negative $y$.
+The tangent is then defined by $y = \lambda x + c$ as before, and it exists whenever $y \ne 0$.
+In the case where $y=0$ the tangent would be vertical, and we exclude this case for now.
+
+\begin{figure}
+\centering
+% a = -1.9; xp = 0.6; yp = -sqrt(xp*xp*xp + a*xp*xp + xp)
+\begin{tikzpicture}[scale=3.0]
+\draw [->] (-0.1,0) -- (2.1,0) node[right] {$x$};
+\draw [->] (0,-1.6) -- (0,1.6) node[above] {$y$};
+\draw [color=blue] plot[id=pos,domain=0:2,samples=100] function{ sqrt(x**3 - 1.9*x**2 + x)};
+\draw [color=blue] plot[id=neg,domain=0:2,samples=100] function{-sqrt(x**3 - 1.9*x**2 + x)};
+\draw [color=red] (0.6,-0.36332) circle [radius=1pt] node[below right,outer sep=5pt] {$P$};
+\draw [color=red] (0.6, 0.36332) circle [radius=1pt] node[above right,outer sep=5pt] {$Q$};
+\draw [color=red] (0.6,-1.6) -- (0.6,1.6);
+\end{tikzpicture}
+\caption{If $x_P=x_Q$ and $y_P=-y_Q$, the line going through the two points is vertical.}
+\label{fig:vertical}
+\end{figure}
+
+Finally, we have the case when $x_P=x_Q$ and $y_P=-y_Q$.
+This case is shown in \autoref{fig:vertical}: the straight line going through the two points is vertical.
+We will return to this case later.
+
+In the cases where the straight line is not vertical, we work out the third point $R$ at which the line intersects the elliptic curve.
+We do this by substituting the line equation~\eqref{eq:line} into the curve equation~\eqref{eq:curve}:
+\begin{equation}
+(\lambda x + c)^2 = x^3 + ax^2 + x \quad\iff\quad x^3 + (a - \lambda^2)\, x^2 + (1 - 2\lambda c)\, x - c^2 = 0 \label{eq:intersect}
+\end{equation}
+The roots of the polynomial~\eqref{eq:intersect} are the $x$ coordinates of the points at which the line intersects the curve.
+Since we know that $P$ and $Q$ lie on both the line and the curve, $x_P$ and $x_Q$ must be roots of~\eqref{eq:intersect}, and so we can divide~\eqref{eq:intersect} by the polynomial $(x - x_P)(x - x_Q) = x^2 - (x_P + x_Q)\,x + x_P x_Q$.
+This works even if $x_P=x_Q$, for the following reason: in the case of $P=Q$ we chose the line to be a tangent to the curve; therefore, the derivative of \eqref{eq:intersect} is zero at $x_P$; therefore, $x_P$ is a double root of \eqref{eq:intersect} and we can divide it by $x - x_P$ twice.
+Performing the polynomial division:
+\begin{equation*}\arraycolsep=1pt\def\arraystretch{1.3}
+\begin{array}{ll}
+& \hspace{60pt} x + a - \lambda^2 + x_P + x_Q \\
+x^2 - (x_P + x_Q)\,x + x_P x_Q \;&
+\overline{\smash{\big)}\; x^3 + (a - \lambda^2)\, x^2 \hspace{50pt} + (1 - 2\lambda c)\, x \hspace{37pt} - c^2} \\
+& \hspace{8pt}\underline{x^3 - (x_P + x_Q)\, x^2 \hspace{40pt} + x_P x_Q x} \\
+& \hspace{30pt}(a - \lambda^2 + x_P + x_Q)\, x^2 + (1 - 2\lambda c - x_P x_Q)\, x - c^2 \\
+& \hspace{30pt}(a - \lambda^2 + x_P + x_Q)\, x^2 - (a - \lambda^2 + x_P + x_Q)\,(x_P + x_Q)\, x \\
+& \hspace{30pt}\underline{\hspace{100pt} +\, (a - \lambda^2 + x_P + x_Q)\,x_P x_Q \hspace{30pt}} \\
+& \hspace{130pt}\dots
+\end{array}
+\end{equation*}
+The polynomial division produces an extremely ugly expression as remainder, but fortunately we do not need to compute it, since we know that it must be zero.
+From the quotient $x + a - \lambda^2 + x_P + x_Q$ we obtain the $x$ coordinate of the third intersection point $R$:
+\begin{equation}
+x_R = \lambda^2 - a - x_P - x_Q \label{eq:xR}
+\end{equation}
+and we obtain the $y$ coordinate by substituting into the line equation~\eqref{eq:line}:
+\begin{equation}
+y_R = \lambda x_R + c = \lambda x_R + y_P - \lambda x_P = y_P + \lambda (x_R - x_P)
+\end{equation}
+Since $(x_R, y_R)$ is defined whenever $\lambda$ exists, we know that the third intersection point $R$ exists whenever the straight line is not vertical.
 
 \bibliographystyle{plainurl}
 \bibliography{references}
