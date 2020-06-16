@@ -1,0 +1,48 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage[english]{babel}
+\usepackage[hidelinks]{hyperref}
+\usepackage{url}
+\usepackage{doi}
+\usepackage{tikz}
+\urlstyle{rm}
+\begin{document}
+\title{Deriving an implementation of Curve25519 from first principles}
+\author{Martin Kleppmann}
+\date{}
+\maketitle
+\begin{abstract}
+TODO
+\end{abstract}
+
+\section{Introduction}
+
+Many textbooks cover the concepts behind Elliptic Curve Cryptography~\cite{Cohen:2006,Hankerson:2004}, but few discuss the details of how you go from the equations to an actual working and secure implementation of the algorithms.
+They also tend to leave out the tedious algebraic derivations, making it difficult to convince ourselves that the results they present are really correct.
+On the other hand, cryptographic libraries don't tend to have much documentation explaining how their code came about and why it is correct.
+
+The goal of this document is to bridge the gap between the mathematics and the code for one particular elliptic curve algorithm, the Curve25519 function for Diffie-Hellman key agreement~\cite{Bernstein:2006kw}.
+Curve25519 is the basis of the X25519 standard~\cite{X25519}, which is a mandatory algorithm in TLS 1.3~\cite{TLS13}, and is also used in WhatsApp~\cite{WhatsAppWhitepaper}, Signal~\cite{Marlinspike:2016}, and various other systems and protocols.
+
+We will examine the implementation of Curve25519 in TweetNaCl~\cite{Bernstein:2014ca,TweetNaCl}, a small but practical cryptography library with the same API as NaCl~\cite{NaCl,Bernstein:2012}.
+(The name derives from the fact that the implementation fits in 100 tweets of up to 140 characters each.)
+TweetNaCl is originally in C, but its simplicity has made it popular for porting to various other languages, such as JavaScript~\cite{TweetNaCljs}.
+Despite its simplicity, TweetNaCl has strong security properties that we expect of fully-fledged cryptography libraries: in particular, it uses constant-time algorithms to prevent side-channel attacks (that is, it performs no branches or array lookups based on secret values), and it is secure against all known attacks.
+
+TweetNaCl advertises itself as ``auditable''~\cite{Bernstein:2014ca} in the sense that its code is short and simple enough that its correctness can be established through code review.
+However, to our knowledge, no detail of any such audit has been published.
+The JavaScript port has indeed been professionally audited, but the report~\cite{TweetNaClAudit} does not go into any technical detail.
+Previous analyses of NaCl/TweetNaCl~\cite{Bernstein:2009,Janssen:2014} give justification for some of the algorithms, but also leave many details unexplained.
+
+Therefore, in this document, we will re-derive the TweetNaCl implementation of Curve25519 from first principles, including all of the tedious algebra.
+(We will not discuss the other algorithms that appear in TweetNaCl, such as the Salsa20 stream cipher, the Poly1305 authenticator, or the Ed25519 signature scheme.)
+The goal is to fully explain and justify every line of code that appears in the implementation.
+This document assumes only a basic background in discrete mathematics (such as modular arithmetic), and requires no prior knowledge on elliptic curves.
+
+Unlike HACL*~\cite{HACLStar}, which contains a formally verified implementation of Curve25519~\cite{Zinzindohoue:2017fc}, the goal of this document is not so much to verify that TweetNaCl is correct, but rather to learn how Elliptic Curve Cryptography works by carefully studying one particular algorithm and its implementation.
+
+\bibliographystyle{plainurl}
+\bibliography{references}
+
+\end{document}
