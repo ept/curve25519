@@ -6,8 +6,14 @@
 \usepackage{url}
 \usepackage{doi}
 \usepackage{amsmath}
+\usepackage{mathtools} % dcases environment
 \usepackage{tikz}
 \urlstyle{rm}
+
+\def\sectionautorefname{Section}%
+\def\subsectionautorefname{Section}%
+\def\subsubsectionautorefname{Section}%
+
 \begin{document}
 \title{Deriving an implementation of Curve25519 from first principles}
 \author{Martin Kleppmann}
@@ -95,7 +101,7 @@ We will use equation~\eqref{eq:curve} as our starting point; a justification for
 \label{fig:curve}
 \end{figure}
 
-\subsection{Straight line intersecting the elliptic curve}
+\subsection{Straight line intersecting the elliptic curve}\label{sec:straight-line}
 
 We say that a point $P = (x_P, y_P)$ lies on the curve if $(x_P, y_P)$ is a solution of equation~\eqref{eq:curve}.
 \autoref{fig:curve} shows an example of such a curve.
@@ -112,7 +118,7 @@ We will show shortly that this third point $R$ always exists.
 This straight line is defined by the equation
 \begin{equation}
 y = \lambda x + c \quad\text{ where the slope is }\quad
-\lambda = \frac{y_Q - y_P}{x_Q - x_P} \quad\text{ and the $y$-intercept is }\quad c = y_P - \lambda x_P. \label{eq:line}
+\lambda = \frac{y_Q - y_P}{x_Q - x_P} \quad\text{ and the $y$-intercept is }\quad c = y_P - \lambda\,x_P. \label{eq:line}
 \end{equation}
 
 If $x_P=x_Q$ there are two possibilities: either $y_P=y_Q$, in which case $P=Q$, or $y_P=-y_Q$.
@@ -177,11 +183,130 @@ From the quotient $x + a - \lambda^2 + x_P + x_Q$ we obtain the $x$ coordinate o
 \begin{equation}
 x_R = \lambda^2 - a - x_P - x_Q \label{eq:xR}
 \end{equation}
-and we obtain the $y$ coordinate by substituting into the line equation~\eqref{eq:line}:
+and we obtain the $y$ coordinate by substituting $x_R$ into the line equation~\eqref{eq:line}:
 \begin{equation}
-y_R = \lambda x_R + c = \lambda x_R + y_P - \lambda x_P = y_P + \lambda (x_R - x_P)
+y_R = \lambda\,x_R + c = \lambda\,x_R + y_P - \lambda\,x_P = y_P + \lambda\,(x_R - x_P) \label{eq:yR}
 \end{equation}
 Since $(x_R, y_R)$ is defined whenever $\lambda$ exists, we know that the third intersection point $R$ exists whenever the straight line is not vertical.
+
+\subsection{Constructing a group}\label{sec:group-construction}
+
+An \emph{abelian group} is a set $E$ together with an operation $\bullet$.
+The operation combines two elements of the set, denoted $a \bullet b$ for $a, b \in E$.
+Moreover, the operation must satisfy the following requirements:
+\begin{description}
+\item[Closure:] For all $a, b \in E$, the result of the operation $a \bullet b$ is also in $E$.
+\item[Commutativity:] For all $a, b \in E$ we have $a \bullet b = b \bullet a$.
+\item[Associativity:] For all $a, b, c \in E$ we have $(a \bullet b) \bullet c = a \bullet (b \bullet c)$.
+\item[Identity element:] There exists an element $e \in E$, called the \emph{identity element} or \emph{neutral element}, such that for all $a \in E$ we have $e \bullet a = a \bullet e = a$.
+\item[Inverse element:] For every $a \in E$ there exists an element $b \in E$ such that $a \bullet b = b \bullet a = e$, where $e$ is the identity element. We then call $b$ the \emph{inverse} of $a$, written $b = a^{-1}$, and vice versa ($a = b^{-1}$).
+\end{description}
+
+A group is a very useful abstraction since it has many nice mathematical properties, especially if the number of elements in $E$ is a prime number (this is called a \emph{prime order group}).
+Many cryptographic algorithms and protocols use a group without specifying how that group should be implemented.
+This works because any two groups with the same prime order are \emph{isomorphic} to each other: informally speaking, they ``behave the same'', regardless of how they are implemented (although their security properties may differ).
+The group we are about to define has an infinite number of elements when the $x$ and $y$ coordinates are real numbers, but we will see later how to make it finite.
+
+We will now use the results from the last section to construct a group.
+The set of elements is the set of points on the elliptic curve~\eqref{eq:curve}, plus one special element $\infty$ that we call the \emph{point at infinity}:
+\begin{equation}
+E = \{(x,y) \mid y^2 = x^3 + a x^2 + x\} \;\cup\; \{\infty\}
+\end{equation}
+The point at infinity has no coordinates, and its purpose is to deal with vertical lines.
+When two different points have the same $x$ coordinate and we draw a vertical line through them, like in \autoref{fig:vertical}, we define the point at infinity to be the third point at which the line ``intersects the curve''.
+We can imagine this point as lying infinitely far up the $y$ axis, and all vertical lines intersect that point.
+
+The point at infinity will also serve as the identity element of our group.
+That is, we define the following to be true:
+\begin{equation}
+P \bullet \infty \;=\; \infty \bullet P \;=\; P \quad\text{ for all } P \in E. \label{eq:law-identity}
+\end{equation}
+Moreover, for any point $P = (x_P, y_P)$ on the curve, we define the \emph{inverse} to be $P^{-1} = (x_P, -y_P)$, i.e.\ the point obtained by mirroring $P$ with respect to the $x$ axis.
+By definition, the inverse satisfies the following property:
+\begin{equation}
+P \bullet P^{-1} \;=\; P^{-1} \bullet P \;=\; \infty \quad\text{ for all } P \in E. \label{eq:law-inverse}
+\end{equation}
+We also define that $\infty^{-1} = \infty$.
+
+Intuitively, we can think of the operator $P \bullet Q$ as combining two points $P$ and $Q$ by drawing a straight line through them and finding a third point on the curve.
+To fully define the operator $\bullet$, we start with the following idea: for any three points $P, Q, R \in E$, if those points lie on the same line, then we have
+\begin{equation}
+P \bullet Q \bullet R = \infty.
+\end{equation}
+We can achieve this by defining $P \bullet Q = R^{-1}$, and then $(P \bullet Q) \bullet R = R^{-1} \bullet R = \infty$.
+That is, given two curve points $P$ and $Q$, we can draw a straight line through those points, find the third point at which that line intersects the curve, and then invert that point by negating its $y$ coordinate.
+The point obtained in this way is $P \bullet Q$.
+
+Using our results~\eqref{eq:xR} and~\eqref{eq:yR} for the coordinates of the third intersection point, along with equations~\eqref{eq:line} and~\eqref{eq:derivative} for the slope $\lambda$, we can now define $P_1 \bullet P_2$ for any two points $P_1$ and $P_2$ on the curve with $P_1 \neq P_2^{-1}$:
+
+\begin{align}
+P_1 \bullet P_2 = (x_1, y_1) \bullet (x_2, y_2) &= (x_3, y_3) \quad\text{where}\nonumber\\[10pt]
+x_3 = \lambda^2 - a - x_1 - x_2 &= \begin{dcases}
+\left(\frac{y_2 - y_1}{x_2 - x_1}\right)^2 - a - x_1 - x_2 & \text{if } x_1 \neq x_2 \\
+\left(\frac{3x_1^2 + 2ax_1 + 1}{2y_1}\right)^2 - a - 2x_1 & \text{if } x_1 = x_2
+\end{dcases}\label{eq:law-x}\\[15pt]
+y_3 = \lambda\,(x_1 - x_3) - y_1 &= \lambda\,(x_1 - \lambda^2 + a + x_1 + x_2) - y_1 =
+\lambda\,(2x_1 + x_2 + a) - \lambda^3 - y_1 =\nonumber\\
+&= \begin{dcases}
+\frac{(2x_1 + x_2 + a) (y_2 - y_1)}{x_2 - x_1} - \left(\frac{y_2 - y_1}{x_2 - x_1}\right)^3 - y_1 & \text{if } x_1 \neq x_2 \\
+\frac{(2x_1 + x_2 + a) (3x_1^2 + 2ax_1 + 1)}{2y_1} - \left(\frac{3x_1^2 + 2ax_1 + 1}{2y_1}\right)^3 - y_1 & \text{if } x_1 = x_2
+\end{dcases}\label{eq:law-y}
+\end{align}
+
+The formulas~\eqref{eq:law-x} and~\eqref{eq:law-y}, along with definitions~\eqref{eq:law-identity} and~\eqref{eq:law-inverse}, form the \emph{group law} for Montgomery curves.
+These definitions may seem somewhat arbitrary, but $\bullet$ has to be defined this way in order to obtain a group.
+For example, if we did not invert the third intersection point of the line, the resulting operation would not form a group.
+
+To prove that our definitions do indeed form an abelian group, we need to show that the five aforementioned properties hold.
+Most of these are easy:
+\begin{itemize}
+\item The closure property holds by definition, since the point $(x_3, y_3)$ defined by~\eqref{eq:law-x} and~\eqref{eq:law-y} lies on the curve, and the result of the group operation in~\eqref{eq:law-identity} and~\eqref{eq:law-inverse} is also an element of $E$.
+\item The identity element $\infty$ exists and has the required behaviour according to definition~\eqref{eq:law-identity}.
+\item The inverse element $P^{-1}$ exists for every $P \in E$ and has the required behaviour according to definition~\eqref{eq:law-inverse}.
+\item To show that the commutativity property holds, consider several cases.
+If $P = \infty$ and/or $Q = \infty$, we have $P \bullet Q = Q \bullet P$ due to~\eqref{eq:law-identity}.
+If $P = Q^{-1}$, we have $P \bullet Q = Q \bullet P$ due to~\eqref{eq:law-inverse}.
+Finally, if $P \neq \infty$, $Q \neq \infty$ and $P \neq Q^{-1}$, consider the straight line through curve points $P$ and $Q$.
+We show that the line through $P$ and $Q$ is the same as the line through $Q$ and $P$, and thus the third intersection point of this line with the curve must be the same.
+If $P=Q$, the two lines are trivially the same according to~\eqref{eq:derivative}.
+If $P \neq Q$, we examine the line equation~\eqref{eq:line}:
+\begin{align*}
+y = \lambda x + c = \lambda\,(x - x_P) + y_P &= \frac{y_Q - y_P}{x_Q - x_P}\,(x - x_P) + y_P \\[5pt]
+& = \frac{-(y_P - y_Q)}{-(x_P - x_Q)}\,(x - x_P) + \frac{y_P\,(x_P - x_Q)}{x_P - x_Q} \\[5pt]
+& = \frac{(y_P - y_Q)\,x - x_P y_P + x_P y_Q + x_P y_P - x_Q y_P}{x_P - x_Q} \\[5pt]
+& = \frac{(y_P - y_Q)\,x + x_P y_Q - x_Q y_P + (x_Q y_Q - x_Q y_Q)}{x_P - x_Q} \\[5pt]
+& = \frac{(y_P - y_Q)\,x - (y_P - y_Q)\,x_Q + (x_P - x_Q)\,y_Q}{x_P - x_Q} \\[5pt]
+& = \frac{y_P - y_Q}{x_Q - x_P}\,(x - x_Q) + y_Q
+\end{align*}
+The expressions on the first and last line are equal except for swapping $P$ and $Q$.
+Thus, we have $P \bullet Q = Q \bullet P$ for all $P, Q \in E$.
+\end{itemize}
+
+The final step is to show that $\bullet$ is associative: $(a \bullet b) \bullet c = a \bullet (b \bullet c)$.
+Unfortunately, proving associativity is rather more complex than the other properties: proofs of this property involve either some advanced mathematics, or the use of a computer algebra software package~\cite{Friedl:2017js,Fujii:2017eb}.
+We will therefore skip the proof of this property.
+
+Instead, to check our result, we can look up Montgomery curves in the \emph{Explicit Formulas Database} (EFD)~\cite{MontgomeryEFD}, which lists the group law as follows:
+\begin{verbatim}
+name Montgomery curves
+parameter a
+parameter b
+coordinate x
+coordinate y
+satisfying b y^2 = x^3 + a x^2 + x
+addition x = b (y2-y1)^2/(x2-x1)^2-a-x1-x2
+addition y = (2 x1+x2+a) (y2-y1)/(x2-x1)-b (y2-y1)^3/(x2-x1)^3-y1
+doubling x = b (3 x1^2+2 a x1+1)^2/(2 b y1)^2-a-x1-x1
+doubling y = (2 x1+x1+a) (3 x1^2+2 a x1+1)/(2 b y1)-b (3 x1^2+2 a x1+1)^3/(2 b y1)^3-y1
+\end{verbatim}
+This database uses a slightly more general form $b y^2 = x^3 + a x^2 + x$ with an additional parameter $b$.
+We can see that with $b=1$, the formulas in the database equal our formulas~\eqref{eq:law-x} and~\eqref{eq:law-y}.
+The formulas in the EFD are checked using the SageMath computer algebra system.
+
+\paragraph{A note on notation.}
+In the literature on elliptic curves, the group operation $\bullet$ is traditionally written as $+$, the inverse of $P$ is written as $-P$, combining two different points $P$ and $Q$ using the group operation $P+Q$ is called \emph{point addition}, and combining a point $P$ with itself $P+P=2P$ is known as \emph{point doubling}.
+On the other hand, in the literature on cryptographic protocols, the group operation is traditionally written as multiplication $\cdot$, the inverse of $P$ is written as $P^{-1}$, and combining a group element with itself is written as $P \cdot P = P^2$.
+In this document we will use $\bullet$ as the group operation on \emph{group elements} $E$, in order to avoid confusion with the addition and multiplication of individual \emph{coordinates}, which is used in the formulas above.
 
 \bibliographystyle{plainurl}
 \bibliography{references}
