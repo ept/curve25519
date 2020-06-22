@@ -8,13 +8,24 @@
 \usepackage{amsmath}
 \usepackage{mathtools} % dcases environment
 \usepackage{tikz}
+
+% The minted package does source code syntax highlighting using Pygments: https://pygments.org/
+% Pygments must be installed on your system, e.g. using `pip3.8 install Pygments`.
+% pdflatex must be run with option -shell-escape so that it can run pygmentize.
+% To allow the document to be built on systems without Pygments, commit the files in the
+% _minted-curve25519/ directory to git. Use option finalizecache=true to update the cached
+% syntax-highlighted listings, and use option frozencache=true to use that cache.
+% With frozencache=true, the -shell-escape option is no longer needed.
+\usepackage[finalizecache=true]{minted}
+
 \urlstyle{rm}
 
+\begin{document}
+\def\listingautorefname{Listing}%
 \def\sectionautorefname{Section}%
 \def\subsectionautorefname{Section}%
 \def\subsubsectionautorefname{Section}%
 
-\begin{document}
 \title{Deriving an implementation of Curve25519 from first principles}
 \author{Martin Kleppmann}
 \date{}
@@ -245,12 +256,12 @@ x_3 = \lambda^2 - a - x_1 - x_2 &= \begin{dcases}
 \left(\frac{y_2 - y_1}{x_2 - x_1}\right)^2 - a - x_1 - x_2 & \text{if } x_1 \neq x_2 \\
 \left(\frac{3x_1^2 + 2ax_1 + 1}{2y_1}\right)^2 - a - 2x_1 & \text{if } x_1 = x_2
 \end{dcases}\label{eq:law-x}\\[15pt]
-y_3 = \lambda\,(x_1 - x_3) - y_1 &= \lambda\,(x_1 - \lambda^2 + a + x_1 + x_2) - y_1 =
-\lambda\,(2x_1 + x_2 + a) - \lambda^3 - y_1 =\nonumber\\
+y_3 = -(y_1 + \lambda\,(x_3 - x_1)) &= \lambda\,(x_1 - \lambda^2 + a + x_1 + x_2) - y_1 =
+\lambda\,(2x_1 + x_2 + a) - \lambda^3 - y_1 =\label{eq:law-y}\\
 &= \begin{dcases}
 \frac{(2x_1 + x_2 + a) (y_2 - y_1)}{x_2 - x_1} - \left(\frac{y_2 - y_1}{x_2 - x_1}\right)^3 - y_1 & \text{if } x_1 \neq x_2 \\
 \frac{(2x_1 + x_2 + a) (3x_1^2 + 2ax_1 + 1)}{2y_1} - \left(\frac{3x_1^2 + 2ax_1 + 1}{2y_1}\right)^3 - y_1 & \text{if } x_1 = x_2
-\end{dcases}\label{eq:law-y}
+\end{dcases}\nonumber
 \end{align}
 
 The formulas~\eqref{eq:law-x} and~\eqref{eq:law-y}, along with definitions~\eqref{eq:law-identity} and~\eqref{eq:law-inverse}, form the \emph{group law} for Montgomery curves.
@@ -270,15 +281,15 @@ Finally, if $P \neq \infty$, $Q \neq \infty$ and $P \neq Q^{-1}$, consider the s
 We show that the line through $P$ and $Q$ is the same as the line through $Q$ and $P$, and thus the third intersection point of this line with the curve must be the same.
 If $P=Q$, the two lines are trivially the same according to~\eqref{eq:derivative}.
 If $P \neq Q$, we examine the line equation~\eqref{eq:line}:
-\begin{align*}
-y = \lambda x + c = \lambda\,(x - x_P) + y_P &= \frac{y_Q - y_P}{x_Q - x_P}\,(x - x_P) + y_P \\[5pt]
-& = \frac{-(y_P - y_Q)}{-(x_P - x_Q)}\,(x - x_P) + \frac{y_P\,(x_P - x_Q)}{x_P - x_Q} \\[5pt]
-& = \frac{(y_P - y_Q)\,x - x_P y_P + x_P y_Q + x_P y_P - x_Q y_P}{x_P - x_Q} \\[5pt]
-& = \frac{(y_P - y_Q)\,x + x_P y_Q - x_Q y_P + (x_Q y_Q - x_Q y_Q)}{x_P - x_Q} \\[5pt]
-& = \frac{(y_P - y_Q)\,x - (y_P - y_Q)\,x_Q + (x_P - x_Q)\,y_Q}{x_P - x_Q} \\[5pt]
-& = \frac{y_P - y_Q}{x_Q - x_P}\,(x - x_Q) + y_Q
-\end{align*}
-The expressions on the first and last line are equal except for swapping $P$ and $Q$.
+\begin{align}
+y = \lambda x + c = \lambda\,(x - x_P) + y_P &= \frac{y_Q - y_P}{x_Q - x_P}\,(x - x_P) + y_P \label{eq:commutative1}\\[5pt]
+& = \frac{-(y_P - y_Q)}{-(x_P - x_Q)}\,(x - x_P) + \frac{y_P\,(x_P - x_Q)}{x_P - x_Q} \nonumber\\[5pt]
+& = \frac{(y_P - y_Q)\,x - x_P y_P + x_P y_Q + x_P y_P - x_Q y_P}{x_P - x_Q} \nonumber\\[5pt]
+& = \frac{(y_P - y_Q)\,x + x_P y_Q - x_Q y_P + (x_Q y_Q - x_Q y_Q)}{x_P - x_Q} \nonumber\\[5pt]
+& = \frac{(y_P - y_Q)\,x - (y_P - y_Q)\,x_Q + (x_P - x_Q)\,y_Q}{x_P - x_Q} \nonumber\\[5pt]
+& = \frac{y_P - y_Q}{x_Q - x_P}\,(x - x_Q) + y_Q \label{eq:commutative2}
+\end{align}
+The expressions~\eqref{eq:commutative1} and~\eqref{eq:commutative2} are equal except for swapping $P$ and $Q$.
 Thus, we have $P \bullet Q = Q \bullet P$ for all $P, Q \in E$.
 \end{itemize}
 
@@ -306,7 +317,105 @@ The formulas in the EFD are checked using the SageMath computer algebra system.
 \paragraph{A note on notation.}
 In the literature on elliptic curves, the group operation $\bullet$ is traditionally written as $+$, the inverse of $P$ is written as $-P$, combining two different points $P$ and $Q$ using the group operation $P+Q$ is called \emph{point addition}, and combining a point $P$ with itself $P+P=2P$ is known as \emph{point doubling}.
 On the other hand, in the literature on cryptographic protocols, the group operation is traditionally written as multiplication $\cdot$, the inverse of $P$ is written as $P^{-1}$, and combining a group element with itself is written as $P \cdot P = P^2$.
-In this document we will use $\bullet$ as the group operation on \emph{group elements} $E$, in order to avoid confusion with the addition and multiplication of individual \emph{coordinates}, which is used in the formulas above.
+In this document we use $\bullet$ as the group operation on \emph{group elements} $E$, in order to avoid confusion with the addition and multiplication of individual \emph{coordinates}, which is used in the formulas above.
+
+\subsection{Elliptic-curve Diffie-Hellman}\label{sec:diffie-hellman}
+
+Now that we have constructed a group, we can use this group for cryptographic protocols.
+In particular, Curve25519 is designed for use in \emph{Diffie-Hellman key exchange}, which allows two parties (Alice and Bob) to establish a shared secret by communicating over an insecure channel.
+This shared secret can then be used as a key to encrypt and authenticate messages between the two parties.
+
+For a group element $P$ and a non-negative integer $k$ we define the repeated application of the group operator to $P$ as follows:
+\begin{equation}
+P^k = \underbrace{P \bullet P \bullet \cdots \bullet P}_\text{$k$ times}
+\end{equation}
+We show in \autoref{sec:ladder} how to compute $P^k$ efficiently, even for large $k$.
+This operation is known as \emph{scalar multiplication} (where \emph{scalar} refers to the fact that $k$ is an integer, not a group element).
+
+We can visualise the sequence $P$, $P^2$, $P^3$, {\dots} as repeatedly drawing a line through points $P$ and $P^i$, as shown in \autoref{fig:curve}, finding a third intersection point of this line, and mirroring it with respect to the $x$ axis to obtain point $P^{i+1}$.
+The effect, intuitively speaking, is a sequence of points that ``jump around'' the curve in a complicated pattern that is difficult to predict.
+This complicated pattern is what makes the group suitable for cryptography.
+
+In particular, if you are given $P$ and $P^k$, it is difficult to determine $k$ (this is known as the \emph{elliptic curve discrete logarithm problem}).
+The best known solutions, such as Pollard's rho algorithm~\cite{Pollard:1978do}, boil down to essentially trying lots of values of $k$ until we find a result that matches what we are looking for.
+This algorithm takes approximately $O(\sqrt{k})$ time to find $k$.
+Thus, if we choose $k$ to be $n$ bits long, the time taken is $O(2^{n/2})$.
+Curve25519 chooses $n=251$, making the difficulty of computing the discrete logarithm similar to the difficulty of breaking a 128-bit symmetric cipher.
+
+Let's say that Bob wants anybody to be able to send him encrypted messages, which we can do using Diffie-Hellman.
+Bob must first generate a keypair consisting of a private and public key, and make the public key available to anybody.
+To generate his keypair, Bob chooses a random integer $j$ as his private key, and computes $P^j$ for a well-known group element $P$.
+This point $P$ is called the \emph{base point} or \emph{generator}, and we will see later how it is chosen.
+The group element $P^j$ is Bob's public key.
+
+When Alice wants to send an encrypted message to Bob, she obtains Bob's public key $P^j$ and chooses a random integer $k$.
+She computes $(P^j)^k$ and uses the result as a key for a symmetric cipher to encrypt her message to Bob.
+She also computes $P^k$ and sends this group element to Bob along with her message, while $k$ remains private.
+When Bob receives $P^k$ from Alice, he uses his private key $j$ to compute:
+\begin{equation*}
+(P^k)^j =
+\underbrace{(\underbrace{P \bullet\cdots\bullet P}_\text{$k$ times}) \bullet\cdots\bullet (\underbrace{P \bullet\cdots\bullet P}_\text{$k$ times})}_\text{$j$ times} =
+\underbrace{P \bullet\cdots\bullet P}_\text{$j \cdot k$ times} =
+\underbrace{(\underbrace{P \bullet\cdots\bullet P}_\text{$j$ times}) \bullet\cdots\bullet (\underbrace{P \bullet\cdots\bullet P}_\text{$j$ times})}_\text{$k$ times} =
+(P^j)^k
+\end{equation*}
+
+\begin{listing}
+\begin{minted}{c}
+typedef unsigned char u8;
+typedef unsigned long long u64;
+extern void randombytes(u8 *,u64);
+static const u8
+  _0[16],
+  _9[32] = {9};
+
+int crypto_scalarmult_base(u8 *q,const u8 *n)
+{ 
+  return crypto_scalarmult(q,n,_9);
+}
+
+int crypto_box_keypair(u8 *y,u8 *x)
+{
+  randombytes(x,32);
+  return crypto_scalarmult_base(y,x);
+}
+
+int crypto_box_beforenm(u8 *k,const u8 *y,const u8 *x)
+{
+  u8 s[32];
+  crypto_scalarmult(s,x,y);
+  return crypto_core_hsalsa20(k,_0,s,sigma);
+}
+\end{minted}
+\caption{Using the \texttt{crypto{\PYGZus}scalarmult} function to implement Diffie-Hellman in TweetNaCl}\label{code:diffie-hellman}
+\end{listing}
+
+Due to the associativity of $\bullet$, the group element $(P^k)^j$ computed by Bob equals the value $(P^j)^k$ that Alice used to encrypt her message.
+Thus, Alice and Bob obtain the same shared secret, and Bob can decrypt Alice's message.
+An adversary knows $P$ and $P^j$ (since they are public) and may learn $P^k$ by eavesdropping as it is sent over the network, but will not be able to compute $P^{jk}$ from $P$, $P^j$ and $P^k$ due to the hardness of the discrete logarithm problem.
+
+\autoref{code:diffie-hellman} shows how Diffie-Hellman is implemented in TweetNaCl.
+The \verb|crypto_scalarmult(q,n,p)| function takes three arguments: \verb|p| is the input group element $P$, \verb|n| is the scalar exponent, and \verb|q| is a pointer to memory where the output $Q=P^n$ will be written.
+\verb|p|, \verb|n| and \verb|q| are all 256-bit numbers, encoded as arrays of 32 bytes.
+In fact, \verb|p| and \verb|q| are not full group elements, but only the $x$ coordinate of points on the curve; we will see in \autoref{sec:ladder} why we can leave out the $y$ coordinate.
+
+\verb|crypto_scalarmult_base(q,n)| performs scalar multiplication using a fixed group element \verb|_9|, which is a curve point whose $x$ coordinate equals 9.
+We will see later why this particular point was chosen as base point.
+The result is again returned in \verb|q|.
+
+\verb|crypto_box_keypair(y,x)| generates a new keypair, where the private key is written to \verb|x| and the public key is written to \verb|y|.
+The function generates the private key by simply drawing 32 bytes (256 bits) from a secure source of uniform random numbers.
+It then performs scalar multiplication of \verb|x| with the fixed base point in \verb|crypto_scalarmult_base|; the result is the public key.
+
+\verb|crypto_box_beforenm(k,y,x)| is called by both the sender and the recipient of a message.
+If called by the sender, \verb|y| is the recipient's public key and \verb|x| is the random integer generated by the sender (Alice's $k$ in the example above).
+If called by the recipient, \verb|y| is the group element sent along with the message ($P^k$ in the example above) and \verb|x| is the recipient's private key.
+In either case, computing the scalar product of the group element and the secret integer produces the shared secret, which is written to \verb|s|.
+The function then initialises the HSalsa20 stream cipher~\cite{Bernstein:2014ca} using this shared secret, and writes the cipher state to \verb|k|.
+Subsequent function calls use \verb|k| to encrypt or decrypt the actual message.
+We won't discuss this cipher any further in this document, as it is beyond the scope of Curve25519.
+
+\subsection{The Montgomery Ladder}\label{sec:ladder}
 
 \bibliographystyle{plainurl}
 \bibliography{references}
