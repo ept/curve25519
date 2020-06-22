@@ -417,6 +417,136 @@ We won't discuss this cipher any further in this document, as it is beyond the s
 
 \subsection{The Montgomery Ladder}\label{sec:ladder}
 
+The Montgomery ladder~\cite{Bernstein:2017fm,Montgomery:1987fz} is the algorithm used by TweetNaCl to efficiently perform scalar multiplication.
+The function $L(P, i)$ takes a group element $P$ and a non-negative integer $i$, and it returns a pair of group elements $(P^i, P^{i+1})$ computed using the group operator $\bullet$:
+\begin{align}
+L(P,\, 0) &= (\infty, P) \\
+L(P,\, 2i) &= (P_i \bullet P_i,\, P_i \bullet P_{i+1}) & \text{ where } L(P, i) = (P_i, P_{i+1}) \text{ and } i>0 \nonumber\\
+L(P,\, 2i+1) &= (P_i \bullet P_{i+1},\, P_{i+1} \bullet P_{i+1}) & \text{ where } L(P, i) = (P_i, P_{i+1}) \text{ and } i \ge 0 \nonumber
+\end{align}
+Here $P^0 = \infty$ because $\infty$ is the identity element of the group.
+The second argument is halved (rounding down) on each recursive call, resulting in $\lfloor\log_2 i\rfloor + 1$ recursive calls to compute $L(P, i)$ (i.e.\ one call per bit of $i$).
+In practice, we can use a loop instead of recursion, and in each iteration of the loop we examine one bit of $i$, starting with the most significant bit.
+(\autoref{code:scalarmult} on page~\pageref{code:scalarmult} shows the TweetNaCl implementation of the Montgomery ladder; lines~19 to~43 contain the main loop that iterates over the bits of the integer.)
+At each loop iteration we perform two group operations:
+\begin{itemize}
+\item If the bit is zero (i.e.\ the $2i$ case), we combine $P_i$ with itself to produce $P^i \bullet P^i = P^{2i}$, and we combine $P_i$ with $P_{i+1}$ to produce $P^i \bullet P^{i+1} = P^{2i+1}$.
+\item If the bit is one (i.e.\ the $2i+1$ case), we combine $P_i$ with $P_{i+1}$ to produce $P^i \bullet P^{i+1} = P^{2i+1}$, and we combine $P_{i+1}$ with itself to produce $P^{i+1} \bullet P^{i+1} = P^{2i+2}$.
+\end{itemize}
+
+The reason we return two group elements rather than just one is that, as we shall see shortly, there is a particularly efficient formula for computing $P^i \bullet P^{i+1} = P^{2i+1}$ given $P$, $P^i$ and $P^{i+1}$, which is faster than directly using the group law in~\eqref{eq:law-x}, \eqref{eq:law-y}.
+
+In Curve25519 we need to execute this loop 255 times (the integer in the scalar multiplication function is 256 bits, but we set the topmost bit to always be zero, hence only 255 iterations are needed).
+As this is the most time-consuming part of the algorithm, we now examine how to perform these group operations as fast as possible.
+
+\paragraph{Using projective coordinates.}
+
+First of all, notice that equations~\eqref{eq:law-x} and~\eqref{eq:law-y} contain fractions.
+If we have to perform division on each iteration of the loop, this division operation would become the slowest part of the algorithm.
+To save time, we can represent coordinates as fractions: $x = X/Z$ and $y = Y/Z$, where $X$, $Y$ and $Z$ are integers.
+(These are known as \emph{projective coordinates}, whereas the $(x, y)$ coordinates we have been using so far are called \emph{affine coordinates}.)
+At each loop iteration we calculate the numerator and denominator for the coordinates separately, without dividing, and we perform the actual division only once, at the end after we have finished the loop.
+
+\paragraph{Optimised formulas for point doubling.}
+
+Let's first derive optimised formulas for combining a group element with itself:
+$P_{2i} = (x_{2i}, y_{2i}) = P_i \bullet P_i = (x, y) \bullet (x, y)$.
+Using the expression we derived in~\eqref{eq:law-x}:
+\begingroup
+\allowdisplaybreaks
+\begin{align*}
+x_{2i} &= \frac{(3x^2 + 2ax + 1)^2}{4y^2} - a - 2x \\[5pt]
+&= \frac{(3x^2 + 2ax + 1)^2}{4\,(x^3 + ax^2 + x)} - a - 2x 
+    \quad\text{ since } (x, y) \text { is on the curve } y^2 = x^3 + ax^2 + x \\[5pt]
+&= \frac{(3x^2 + 2ax + 1)^2 - 4\,(x^3 + ax^2 + x)(2x + a)}{4\,(x^3 + ax^2 + x)} \\[5pt]
+&= \frac{9x^4 + 12ax^3 + (4a^2 + 6)\,x^2 + 4ax + 1 -4\,(2x^4 + 3ax^3 + (a^2 + 2)\,x^2 + ax)}{4\,(x^3 + ax^2 + x)} \\[5pt]
+&= \frac{x^4 -2x^2 + 1}{4\,(x^3 + ax^2 + x)} 
+    \;=\; \frac{\frac{X^4}{Z^4} - \frac{2X^2}{Z^2} + 1}{4\,\left(\frac{X^3}{Z^3} + \frac{aX^2}{Z^2} + \frac{X}{Z}\right)}
+    \quad\text{ using projective coordinates } x=\frac{X}{Z}\\[5pt]
+&= \frac{\frac{1}{Z^4}\,(X^4 - 2X^2 Z^2 + Z^4)}{\frac{4}{Z^3}\,(X^3 + aX^2 Z + X Z^2)}
+    \;=\; \frac{X^4 - 2X^2 Z^2 + Z^4}{4Z\,(X^3 + aX^2 Z + XZ^2)} \\[5pt]
+&= \frac{X^4 + 2X^3 Z + X^2 Z^2 - 2X^3 Z - 4 X^2 Z^2 - 2X Z^3 + X^2 Z^2 + 2X Z^3 + Z^4}{4Z\,(X^3 + aX^2 Z + XZ^2)} \\[5pt]
+&= \frac{(X^2 + 2XZ + Z^2)\,(X^2 - 2XZ + Z^2)}{4Z\,(X^3 + aX^2 Z + XZ^2)} \\[5pt]
+&= \frac{(X + Z)^2\,(X - Z)^2}{4Z\,(X^3 + aX^2 Z + XZ^2)}
+\end{align*}
+\endgroup
+Thus, we obtain the following projective formulas for point doubling:
+\begin{equation}
+\left(\frac{X_i}{Z_i}, \frac{Y_i}{Z_i}\right) \bullet \left(\frac{X_i}{Z_i}, \frac{Y_i}{Z_i}\right) =
+\left(\frac{X_{2i}}{Z_{2i}}, \frac{Y_{2i}}{Z_{2i}}\right) \quad\text{where}\quad
+    \begin{array}{rl}
+        X_{2i} &= (X_i + Z_i)^2\,(X_i - Z_i)^2 \\[5pt]
+        Z_{2i} &= 4Z_i\,(X_i^3 + aX_i^2 Z_i + X_i Z_i^2)
+    \end{array}
+\end{equation}
+
+Note that that the formulas for $X_{2i}$ and $Z_{2i}$ do not use the $Y$ coordinate anywhere.
+This means that we can avoid computing any $Y$ coordinates in the first place, and we don't even need to derive an expression for $Y_{2i}$.
+Next, we will derive formulas for point addition that also avoid using any $Y$ coordinates.
+
+\paragraph{Optimised formulas for point addition.}
+
+\begin{listing}
+\begin{minted}[linenos]{c}
+#define FOR(i,n) for (i = 0;i < n;++i)
+typedef long long i64;
+typedef i64 gf[16];
+
+int crypto_scalarmult(u8 *q,const u8 *n,const u8 *p)
+{
+  u8 z[32];
+  i64 x[80],r,i;
+  gf a,b,c,d,e,f;
+  FOR(i,31) z[i]=n[i];
+  z[31]=(n[31]&127)|64;
+  z[0]&=248;
+  unpack25519(x,p);
+  FOR(i,16) {
+    b[i]=x[i];
+    d[i]=a[i]=c[i]=0;
+  }
+  a[0]=d[0]=1;
+  for(i=254;i>=0;--i) {
+    r=(z[i>>3]>>(i&7))&1;
+    sel25519(a,b,r);
+    sel25519(c,d,r);
+    A(e,a,c);
+    Z(a,a,c);
+    A(c,b,d);
+    Z(b,b,d);
+    S(d,e);
+    S(f,a);
+    M(a,c,a);
+    M(c,b,e);
+    A(e,a,c);
+    Z(a,a,c);
+    S(b,a);
+    Z(c,d,f);
+    M(a,c,_121665);
+    A(a,a,d);
+    M(c,c,a);
+    M(a,d,f);
+    M(d,b,x);
+    S(b,e);
+    sel25519(a,b,r);
+    sel25519(c,d,r);
+  }
+  FOR(i,16) {
+    x[i+16]=a[i];
+    x[i+32]=c[i];
+    x[i+48]=b[i];
+    x[i+64]=d[i];
+  }
+  inv25519(x+32,x+32);
+  M(x+16,x+16,x+32);
+  pack25519(q,x+16);
+  return 0;
+}
+\end{minted}
+\caption{The Montgomery ladder for scalar multiplication in TweetNaCl}\label{code:scalarmult}
+\end{listing}
+
+
 \bibliographystyle{plainurl}
 \bibliography{references}
 
