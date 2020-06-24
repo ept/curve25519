@@ -454,19 +454,19 @@ At each loop iteration we calculate the numerator and denominator for the coordi
 Let's first derive optimised formulas for combining a group element with itself:
 $P_{2i} = (x_{2i}, y_{2i}) = P_i \bullet P_i = (x, y) \bullet (x, y)$.
 Using the expression in~\eqref{eq:law-x}:
-\begin{align*}
-x_{2i} &= \frac{(3x^2 + 2ax + 1)^2}{4y^2} - a - 2x \\[5pt]
+\begin{align}
+x_{2i} &= \frac{(3x^2 + 2ax + 1)^2}{4y^2} - a - 2x \nonumber\\[5pt]
 &= \frac{(3x^2 + 2ax + 1)^2}{4\,(x^3 + ax^2 + x)} - a - 2x 
-    \quad\text{ since } (x, y) \text { is on the curve } y^2 = x^3 + ax^2 + x \\[5pt]
-&= \frac{(3x^2 + 2ax + 1)^2 - 4\,(x^3 + ax^2 + x)(2x + a)}{4\,(x^3 + ax^2 + x)} \\[5pt]
-&= \frac{9x^4 + 12ax^3 + (4a^2 + 6)\,x^2 + 4ax + 1 -4\,(2x^4 + 3ax^3 + (a^2 + 2)\,x^2 + ax)}{4\,(x^3 + ax^2 + x)} \\[5pt]
+    \quad\text{ since } (x, y) \text { is on the curve } y^2 = x^3 + ax^2 + x \nonumber\\[5pt]
+&= \frac{(3x^2 + 2ax + 1)^2 - 4\,(x^3 + ax^2 + x)(2x + a)}{4\,(x^3 + ax^2 + x)} \nonumber\\[5pt]
+&= \frac{9x^4 + 12ax^3 + (4a^2 + 6)\,x^2 + 4ax + 1 -4\,(2x^4 + 3ax^3 + (a^2 + 2)\,x^2 + ax)}{4\,(x^3 + ax^2 + x)} \nonumber\\[5pt]
 &= \frac{x^4 -2x^2 + 1}{4\,(x^3 + ax^2 + x)} 
     \;=\; \frac{\frac{X^4}{Z^4} - \frac{2X^2}{Z^2} + 1}{4\,\left(\frac{X^3}{Z^3} + \frac{aX^2}{Z^2} + \frac{X}{Z}\right)}
-    \quad\text{ using projective coordinates } x=\frac{X}{Z}\\[5pt]
+    \quad\text{ using projective coordinates } x=\frac{X}{Z} \label{eq:alt-doubling}\\[5pt]
 &= \frac{\frac{1}{Z^4}\,(X^4 - 2X^2 Z^2 + Z^4)}{\frac{4}{Z^3}\,(X^3 + aX^2 Z + X Z^2)}
     \;=\; \frac{X^4 - 2X^2 Z^2 + Z^4}{4XZ\,(X^2 + aX Z + Z^2)}
-    \;=\; \frac{(X^2 - Z^2)^2}{4XZ\,(X^2 + aX Z + Z^2)}
-\end{align*}
+    \;=\; \frac{(X^2 - Z^2)^2}{4XZ\,(X^2 + aX Z + Z^2)} \nonumber
+\end{align}
 Thus, we obtain the following projective formulas for point doubling:
 \begin{equation}
 \left(\frac{X_i}{Z_i}, \frac{Y_i}{Z_i}\right) \bullet \left(\frac{X_i}{Z_i}, \frac{Y_i}{Z_i}\right) =
@@ -555,7 +555,7 @@ We will see later how exactly this constant-time property is achieved in TweetNa
 
 \paragraph{TODO:} Why do Bernstein and Lange~\cite[Theorem 4.4]{Bernstein:2017fm} have an unexplained extra factor of 4 in the formulas for $X_{2i+1}$ and $Z_{2i+1}$?
 
-\paragraph{Handling the point at infinity.}
+\subsection{Handling the point at infinity}
 
 In the derivation of the above formulas we have so far considered only points that are solutions to the curve equation, and ignored the point at infinity $\infty$.
 It is time that we now address this issue.
@@ -571,8 +571,8 @@ Moreover, we show that provided each input is valid, $(X, Z) \ne (0, 0)$, then t
 The following assumes that $x_P \ne 0$.
 
 \begin{itemize}
-    \item Let $Z_i=0$ and $X_i \ne 0$.
-        Then $Z_{2i}=0$ and $X_{2i} = X_i^4 \ne 0$, which matches the behaviour $\infty\bullet\infty=\infty$ required by~\eqref{eq:law-identity}.
+    \item Let $Z_i=0$ and $X_i \ne 0$, so $P_i = \infty$.
+        Then $Z_{2i}=0$ and $X_{2i} = X_i^4 \ne 0$, so $P_{2i} = P_i \bullet P_i = \infty\bullet\infty = \infty$ as required by~\eqref{eq:law-identity}.
     \item Let $Z_i \ne 0$. We consider two cases depending on the value of $X_i^3 + aX_i^2 Z_i + X_i Z_i^2$:
         \begin{enumerate}
             \item Assume that $X_i^3 + aX_i^2 Z_i + X_i Z_i^2 = 0$; hence $Z_{2i} = 0$.
@@ -584,43 +584,69 @@ The following assumes that $x_P \ne 0$.
             \item Assume that $X_i^3 + aX_i^2 Z_i + X_i Z_i^2 \ne 0$, which implies $X_i \ne 0$.
                 Since $Z_i \ne 0$ we have $Z_{2i} \ne 0$, so we have $(X_{2i}, Z_{2i}) \ne (0, 0)$ as required.
         \end{enumerate}
-    \item Let $Z_i \ne 0$, $Z_{i+1} \ne 0$, and $X_i/Z_i = X_{i+1}/Z_{i+1}$.
+    \item Let $Z_i \ne 0$, $Z_{i+1} \ne 0$, and $P_i$ has the same $x$ coordinate as $P_{i+1}$, i.e.\ $X_i/Z_i = X_{i+1}/Z_{i+1}$.
         This implies one of two situations: either $P_i = P_{i+1}$ or $P_i^{-1} = P_{i+1}$.
         The former is ruled out by our assumption that $P \ne \infty$, so we have $P_i^{-1} = P_{i+1}$ and require that $P_i \bullet P_{i+1} = \infty$ as per~\eqref{eq:law-inverse}.
         $X_i/Z_i = X_{i+1}/Z_{i+1}$ implies that $X_i Z_{i+1} = X_{i+1} Z_{i}$, so $Z_{2i+1} = 0$ as required.
 
-        Finally, we need to show that $X_{2i+1} \ne 0$.
+        Next, we need to show that $X_{2i+1} \ne 0$.
         Suppose to the contrary that $X_{2i+1} = 0$, implying that $X_i X_{i+1} - Z_i Z_{i+1} = 0$.
         Taken together with the fact $X_i Z_{i+1} = X_{i+1} Z_{i}$ that we showed earlier, we have $X_i X_{i+1} - Z_i Z_{i+1} - X_i Z_{i+1} + X_{i+1} Z_{i} = (X_i + Z_i)\,(X_{i+1} - Z_{i+1}) = 0$.
         We now have two cases:
         \begin{enumerate}
             \item If $X_i + Z_i = 0$ then $X_i = -Z_i$ so $X_i/Z_i = -1$.
-                By assumption $X_i/Z_i = X_{i+1}/Z_{i+1}$ we have $X_{i+1}/Z_{i+1} = -1$.
-                TODO need to derive a contradiction.
-            \item If $X_i + Z_i \ne 0$ then $X_{i+1} = Z_{i+1}$ so $X_{i+1}/Z_{i+1} = 1$.
-                By assumption $X_i/Z_i = X_{i+1}/Z_{i+1}$ we have $X_i/Z_i = 1$.
-                TODO need to derive a contradiction.
+                Using assumption $X_i/Z_i = X_{i+1}/Z_{i+1}$ we have $X_{i+1}/Z_{i+1} = x_{i+1} = -1$, so the affine $x$ coordinate of $P_{i+1}$ equals $-1$.
+            \item If $X_i + Z_i \ne 0$ then $X_{i+1} = Z_{i+1}$ so $X_{i+1}/Z_{i+1} = x_{i+1} = 1$, so the affine $x$ coordinate of $P_{i+1}$ equals $1$.
         \end{enumerate}
+        In both cases, we use the point doubling expression~\eqref{eq:alt-doubling} to calculate the $x$ coordinate of $P_{i+1} \bullet P_{i+1}$, which is $(x_{i+1}^4 -2x_{i+1}^2 + 1)/(4x_{i+1}^3 + 4ax_{i+1}^2 + 4x_{i+1}) = 0$ for $x_{i+1} = \pm 1$.
+        Note that $P_{i+1} = P_i \bullet P$, so $P = P_i^{-1} \bullet P_{i+1} = P_{i+1} \bullet P_{i+1}$ due to our earlier observation that $P_i^{-1} = P_{i+1}$.
+        Hence, the $x$ coordinate of $P$ equals zero, which contradicts our earlier assumption that $x_P \ne 0$.
+        Thus we have $X_{2i+1} \ne 0$ as required.
+    \item Let $Z_i \ne 0$, $Z_{i+1} \ne 0$, and $P_i$ has a different $x$ coordinate from $P_{i+1}$, i.e.\ $X_i/Z_i \ne X_{i+1}/Z_{i+1}$.
+        Then $X_i Z_{i+1} \ne X_{i+1} Z_i$ so $Z_{2i+1} \ne 0$, so $P_{2i+1} \ne \infty$ as required.
     \item Let $Z_i=0$ and $X_i \ne 0$, so $P_i = \infty$.
         Since $P_{i+1} = P_i \bullet P = \infty \bullet P = P$ and $P \ne \infty$ we have $Z_{i+1} \ne 0$ and $X_{i+1}/Z_{i+1} = x_P$, so $X_{i+1} = x_P Z_{i+1}$.
         Hence, $X_{2i+1} = (X_i X_{i+1})^2 = x_P^2 X_i^2 Z_{i+1}^2$ and $Z_{2i+1} = x_P\,(X_i Z_{i+1})^2 \ne 0$.
         Thus, $X_{2i+1}/Z_{2i+1} = x_P^2 X_i^2 Z_{i+1}^2 / x_P X_i^2 Z_{i+1}^2 = x_P$ so $P_{2i+1} = P_i \bullet P_{i+1} = \infty \bullet P = P$ as required by~\eqref{eq:law-identity}.
     \item Let $Z_{i+1} = 0$ and $X_{i+1} \ne 0$, so $P_{i+1} = \infty$.
-        Since $P_{i+1} = P_i \bullet P$ and $P \ne \infty$ we have $P_i = P^{-1}$.
-        TODO finish this.
+        Since $P_{i+1} = P_i \bullet P$ and $P \ne \infty$ we have $P_i = P^{-1}$ and $Z_i \ne 0$.
+        The $x$ coordinate of $P^{-1}$ is the same as the $x$ coordinate of $P$, namely $x_P$, so $X_i/Z_i = x_P$, so $X_i = x_P Z_i$.
+        Hence, similarly to the last case, we have $X_{2i+1} = (X_i X_{i+1})^2 = x_P^2 X_{i+1}^2 Z_i^2$ and $Z_{2i+1} = x_P\,(-X_{i+1} Z_i)^2 \ne 0$.
+        Thus, $X_{2i+1}/Z_{2i+1} = x_P^2 X_{i+1}^2 Z_i^2 / x_P X_{i+1}^2 Z_i^2 = x_P$, which is consistent with $P_{2i+1} = P_i \bullet P_{i+1} = P^{-1} \bullet \infty = P^{-1}$ as required by~\eqref{eq:law-identity}.
 \end{itemize}
 
-\paragraph{The optimised Montgomery ladder step.}
+These bullet points cover all possible cases, demonstrating that the formulas~\eqref{eq:ladder-step} correctly handle all group elements, including the point at infinity, without need for any special handling of edge cases.
+That is good news because the lack of edge cases simplifies the implementation of the Montgomery ladder.
+Moreover, it is easier to make the algorithm constant-time if every step of the ladder performs exactly the same arithmetic operations, independently of the values of its inputs.
 
-Further manipulation of the $X_{2i}$ coordinate from~\eqref{eq:projective-double}:
+\subsection{Optimising the Montgomery ladder step}
+
+The formulas~\eqref{eq:ladder-step} are nice and simple, but if we compare them to the TweetNaCl implementation of the Montgomery ladder in \autoref{code:scalarmult}, the two look quite different.
+The reason is that the code is based on formulas that have been further optimised.
+
+We have already avoided using division in the Montgomery ladder step by moving to projective coordinates.
+To further improve the performance, we will aim to reduce the number of multiplications as far as possible, since they are generally the most expensive operations after division.
+We ignore additions and subtractions since they are cheap by comparison.
+
+If we break down the formulas~\eqref{eq:ladder-step} into one multiplication per equation, reusing common sub-expressions where possible, we see that each step of the ladder requires 14 multiplications:
 \begin{align*}
-X_{2i} &= (X^2 - Z^2)^2 \\
-&= X^4 - 2X^2 Z^2 + Z^4 \\
-&= X^4 + 2X^3 Z + X^2 Z^2 - 2X^3 Z - 4 X^2 Z^2 - 2X Z^3 + X^2 Z^2 + 2X Z^3 + Z^4 \\
-&= (X^2 + 2XZ + Z^2)\,(X^2 - 2XZ + Z^2) \\
-&= (X + Z)^2\,(X - Z)^2
+    v_1 &= X_i^2 &
+    v_5 &= a v_3 &
+    v_6 &= X_i X_{i+1} &
+    v_{10} &= (v_8 - v_9)^2 \\
+    v_2 &= Z_i^2 &
+    X_{2i} &= (v_1 - v_2)^2 &
+    v_7 &= Z_i Z_{i+1} &
+    X_{2i+1} &= (v_6 - v_7)^2 \\
+    v_3 &= X_i Z_i &
+    Z_{2i} &= v_4\,(v_1 + v_5 + v_2) &
+    v_8 &= X_i Z_{i+1} &
+    Z_{2i+1} &= x_P v_{10} \\
+    v_4 &= 4 v_3 &&&
+    v_9 &= X_{i+1} Z_i
 \end{align*}
-TODO: $Z$ coordinate expression isn't in the right form yet.
+Some authors count multiplication by a constant ($4$ or $a$, in the case of $v_4$ and $v_5$) and squaring separately from multiplication.
+However, TweetNaCl uses the same multiplication function in all cases, so for simplicity we count all types of multiplication equally.
 
 \begin{listing}
 \begin{minted}[linenos]{c}
@@ -683,6 +709,32 @@ int crypto_scalarmult(u8 *q,const u8 *n,const u8 *p)
 \caption{The Montgomery ladder for scalar multiplication in TweetNaCl}\label{code:scalarmult}
 \end{listing}
 
+In contrast to the above 14 multiplications, TweetNaCl uses only 10 multiplications per step.
+In this section we focus on how to derive the algorithm in \autoref{code:scalarmult} from the formulas~\eqref{eq:ladder-step}.
+The main ladder loop in lines~20 to~44 of \autoref{code:scalarmult} calls the following functions:
+\begin{itemize}
+    \item \verb|sel25519(a,b,r)| examines the value \verb|r|, which is either 0 or 1.
+        If \verb|r == 0|, the function does nothing.
+        If \verb|r == 1|, the function swaps the values in the two variables \verb|a| and \verb|b|.
+        It does this in constant time, so the ``do nothing'' case takes the same execution time as the swapping case.
+    \item \verb|A(x,y,z)| computes \verb|y| plus \verb|z|, and writes the sum to \verb|x|.
+    \item \verb|Z(x,y,z)| computes \verb|y| minus \verb|z|, and writes the difference to \verb|x|.
+    \item \verb|M(x,y,z)| multiplies \verb|y| and \verb|z|, and writes the product to \verb|x|.
+    \item \verb|S(x,y)| squares the value in \verb|y|, and writes the result to \verb|x|.
+        \verb|S(x,y)| is the same as \verb|M(x,y,y)|.
+\end{itemize}
+We will discuss the implementation of these functions in \autoref{sec:field-arithmetic}.
+
+Manipulation of $X_{2i}$:
+\begin{align*}
+X_{2i} &= (X^2 - Z^2)^2 \\
+&= X^4 - 2X^2 Z^2 + Z^4 \\
+&= X^4 + 2X^3 Z + X^2 Z^2 - 2X^3 Z - 4 X^2 Z^2 - 2X Z^3 + X^2 Z^2 + 2X Z^3 + Z^4 \\
+&= (X^2 + 2XZ + Z^2)\,(X^2 - 2XZ + Z^2) \\
+&= (X + Z)^2\,(X - Z)^2
+\end{align*}
+
+\section{Finite field arithmetic}\label{sec:field-arithmetic}
 
 \bibliographystyle{plainurl}
 \bibliography{references}
