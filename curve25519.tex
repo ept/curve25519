@@ -618,7 +618,7 @@ These bullet points cover all possible cases, demonstrating that the formulas~\e
 That is good news because the lack of edge cases simplifies the implementation of the Montgomery ladder.
 Moreover, it is easier to make the algorithm constant-time if every step of the ladder performs exactly the same arithmetic operations, independently of the values of its inputs.
 
-\subsection{Optimising the Montgomery ladder step}
+\subsection{Optimising the Montgomery ladder step}\label{sec:ladder-optimised}
 
 The formulas~\eqref{eq:ladder-step} are nice and simple, but if we compare them to the TweetNaCl implementation of the Montgomery ladder in \autoref{code:scalarmult}, the two look quite different.
 The reason is that the code is based on formulas that have been further optimised.
@@ -760,6 +760,83 @@ However, since these two variables are just an expanded representation of the fr
 %TODO \url{https://en.wikipedia.org/wiki/Montgomery_curve} has some detail on formulas for group arithmetic
 
 \section{Finite field arithmetic}\label{sec:field-arithmetic}
+
+Some parts of the derivation in \autoref{sec:curve-arithmetic}, such as the use of the derivative to compute the slope of the tangent to the curve at a particular point, assumed that the elliptic curve coordinates $(x, y)$ are real numbers.
+However, for cryptographic purposes it is much more useful if the coordinates are integers within a finite range (i.e.\ integers that can be represented in a fixed number of bits).
+
+Fortunately, the group law for Montgomery curves~\eqref{eq:law-x} and \eqref{eq:law-y}, and the subsequent derivation of the Montgomery ladder, are valid not just for real numbers, but for any \emph{field}.
+Building upon the definition of an abelian group in \autoref{sec:group-construction}, a field is a set of elements $F$ along with two operators (multiplication $a \cdot b$ and addition $a + b$), with the following properties:
+\begin{itemize}
+    \item The set $F$ and the addition operator $+$ form an abelian group with identity element $0$.
+        We denote the inverse of $a \in F$ in this group as $-a$.
+        The subtraction operator $a - b$ is then shorthand for $a + (-b)$.
+    \item The set $F \setminus \{0\}$ and the multiplication operator $\cdot$ form an abelian group with identity element $1$.
+        We denote the inverse of $a \in F$ in this group as $a^{-1}$.
+        The division operator $a/b$ is then shorthand for $a \cdot (b^{-1})$.
+    \item The addition and multiplication operators satisfy the distributive law: $a \cdot (b + c) = (a \cdot b) + (a \cdot c)$.
+\end{itemize}
+The real numbers $\mathbb{R}$ along with the usual addition and multiplication operators form a field with an infinite set of elements, but we can also define a field where the set of elements $F$ is finite.
+This is called a \emph{finite field}, also known as \emph{Galois field}.
+
+Curve25519 uses the finite field of integers modulo $p = 2^{255}-19$ (hence the name).
+This field consists of the set of integers $\mathbb{Z}_p = \{0, 1, \dots, p-1\}$, where addition and multiplication are performed modulo $p$: that is, any number $\ge p$ is \emph{reduced modulo $p$} by subtracting multiples of $p$ until the number is within the range $[0,\, p-1]$.
+If two numbers $a$ and $b$ reduce to the same integer modulo $p$, we say that they are \emph{congruent modulo $p$}, written $a \equiv b \pmod{p}$.
+More formally, we have $a \equiv b \pmod{p}$ if and only if there exists $k \in \mathbb{Z}$ such that $a - b = kp$.
+
+The additive inverse of $a$ modulo $p$ is $-a = p - a$, which always exists.
+Moreover, because $p$ is a prime number, every number $a \in \{1, \dots, p-1\}$ has a multiplicative inverse $a^{-1}$ modulo $p$: that is, for every $a \not\equiv 0$ there exists $b \in \{1, \dots, p-1\}$ such that $a \cdot b = 1$.
+Note that when we perform division modulo $p$, e.g.\ calculating $a/b = a \cdot (b^{-1})$, the result is still an integer modulo $p$, not a fraction.
+
+\subsection{Arithmetic operators in TweetNaCl}
+
+Since Curve25519 coordinates are integers modulo $2^{255}-19$, we can represent them as 255-bit numbers.
+TweetNaCl uses two different representations for these numbers: either as a 32-element array of 8-bit pieces (bytes), or as a 16-element array of 16-bit pieces.
+The 32-byte representation is used for input and output, while the representation using 16-bit pieces is used internally by the arithmetic operators.
+
+In the TweetNaCl code, the \verb|gf| datatype (short for Galois field?) is used for the latter representation.
+Even though each piece is just 16 bits, it is declared as a 16-element array of 64-bit signed integers, for reasons that will become clear shortly.
+\autoref{code:unpack25519} shows the \verb|unpack25519| function, which converts a number from the byte array representation to the \verb|gf| representation.
+In the last line, it forces the most significant bit (the 256th bit) to be zero; this makes sense because our numbers are always less than $2^{255}$.
+
+\begin{listing}
+\begin{minted}{c}
+#define FOR(i,n) for (i = 0;i < n;++i)
+#define sv static void
+typedef unsigned char u8;
+typedef i64 gf[16];
+
+sv unpack25519(gf o, const u8 *n)
+{
+  int i;
+  FOR(i,16) o[i]=n[2*i]+((i64)n[2*i+1]<<8);
+  o[15]&=0x7fff;
+}
+\end{minted}
+\caption{Converting an integer modulo $p$ from the byte array representation to the array of 16-bit pieces.}\label{code:unpack25519}
+\end{listing}
+
+\begin{listing}
+\begin{minted}{c}
+sv sel25519(gf p,gf q,int b)
+{
+  i64 t,i,c=~(b-1);
+  FOR(i,16) {
+    t= c&(p[i]^q[i]);
+    p[i]^=t;
+    q[i]^=t;
+  }
+}
+\end{minted}
+\caption{Conditionally swapping the values in two variables.}\label{code:sel25519}
+\end{listing}
+
+\autoref{code:sel25519} shows the definition of the \verb|sel25519(p,q,b)| function, which swaps the content of \verb|p| and \verb|q| if the bit \verb|b| is 1, and does nothing if \verb|b| is 0, as discussed in \autoref{sec:ladder-optimised}.
+This function also operates on the \verb|gf| representation of integers.
+It first sets \verb|c=~(b-1)|, which equals 0 if \verb|b == 0|, and \verb|0xffff...| if \verb|b == 1|.
+Next it iterates over each of the 16 pieces of the number, and computes \verb|t = c&(p[i]^q[i])| for index \verb|i|, which equals 0 if \verb|b == 0|, and \verb|p[i]^q[i]| if \verb|b == 1|.
+The operation \verb|p[i] ^= t| thus has no effect if \verb|b == 0|, and sets \verb|p[i] = p[i] ^ (p[i] ^ q[i]) = q[i]| if \verb|b == 1|.
+Likewise, \verb|q[i]| is set to \verb|p[i]| if \verb|b == 1|.
+This function performs exactly the same operations regardless of the value of \verb|b|, so it is constant-time.
 
 \bibliographystyle{plainurl}
 \bibliography{references}
