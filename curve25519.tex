@@ -6,6 +6,7 @@
 \usepackage{url}
 \usepackage{doi}
 \usepackage{amsmath}
+\usepackage{amssymb}
 \usepackage{mathtools} % dcases environment
 \usepackage{tikz}
 
@@ -64,11 +65,11 @@ Unlike HACL*~\cite{HACLStar}, which contains a formally verified implementation 
 
 Curve25519 uses the curve
 \begin{equation}\label{eq:curve}
-y^2 = x^3 + a x^2 + x
+y^2 = x^3 + A x^2 + x
 \end{equation}
-which is known as a \emph{Montgomery curve}, with parameter $a = 486662$.
-We will use equation~\eqref{eq:curve} as our starting point; a justification for the use of this equation and the choice of $a$ appear in the Curve25519 paper \cite{Bernstein:2006kw}.
-Our derivations work for any $a^2 \ne 4$; this restriction ensures the curve has the required shape.
+which is known as a \emph{Montgomery curve}, with parameter $A = 486662$.
+We will use equation~\eqref{eq:curve} as our starting point; a justification for the use of this equation and the choice of $A$ appear in the Curve25519 paper \cite{Bernstein:2006kw}.
+Our derivations work for any $A^2 \ne 4$; this restriction ensures the curve has the required shape.
 % TODO can we use Sage to compute the number of points on the curve?
 
 \begin{figure}
@@ -140,10 +141,10 @@ This is the natural generalisation of the slope $(y_Q - y_P)/(x_Q - x_P)$ in the
 
 To compute the slope $\lambda$ of this tangent, we can calculate the derivative of the curve equation~\eqref{eq:curve} using the chain rule:
 \begin{align}
-y^2 &= x^3 + a x^2 + x \quad\iff\quad y = \pm\sqrt{x^3 + a x^2 + x}\\
-\lambda = \frac{\mathrm{d}y}{\mathrm{d}x} &= \pm\frac{3x^2 + 2ax + 1}{2\sqrt{x^3 + ax^2 + x}}
-= \pm\frac{3x^2 + 2ax + 1}{2|y|}
-= \frac{3x^2 + 2ax + 1}{2y} \label{eq:derivative}
+y^2 &= x^3 + A x^2 + x \quad\iff\quad y = \pm\sqrt{x^3 + A x^2 + x}\\[5pt]
+\lambda = \frac{\mathrm{d}y}{\mathrm{d}x} &= \pm\frac{3x^2 + 2Ax + 1}{2\sqrt{x^3 + Ax^2 + x}}
+= \pm\frac{3x^2 + 2Ax + 1}{2|y|}
+= \frac{3x^2 + 2Ax + 1}{2y} \label{eq:derivative}
 \end{align}
 The sign of $\lambda$ in equation~\eqref{eq:derivative} works out correctly for both positive and negative $y$.
 The tangent is then defined by $y = \lambda x + c$ as before, and it exists whenever $y \ne 0$.
@@ -172,7 +173,7 @@ We will return to this case later.
 In the cases where the straight line is not vertical, we work out the third point $R$ at which the line intersects the elliptic curve.
 We do this by substituting the line equation~\eqref{eq:line} into the curve equation~\eqref{eq:curve}:
 \begin{equation}
-(\lambda x + c)^2 = x^3 + ax^2 + x \quad\iff\quad x^3 + (a - \lambda^2)\, x^2 + (1 - 2\lambda c)\, x - c^2 = 0 \label{eq:intersect}
+(\lambda x + c)^2 = x^3 + Ax^2 + x \quad\iff\quad x^3 + (A - \lambda^2)\, x^2 + (1 - 2\lambda c)\, x - c^2 = 0 \label{eq:intersect}
 \end{equation}
 The roots of the polynomial~\eqref{eq:intersect} are the $x$ coordinates of the points at which the line intersects the curve.
 Since we know that $P$ and $Q$ lie on both the line and the curve, $x_P$ and $x_Q$ must be roots of~\eqref{eq:intersect}, and so we can divide~\eqref{eq:intersect} by the polynomial $(x - x_P)(x - x_Q) = x^2 - (x_P + x_Q)\,x + x_P x_Q$.
@@ -180,20 +181,20 @@ This works even if $x_P=x_Q$, for the following reason: in the case of $P=Q$ we 
 Performing the polynomial division:
 \begin{equation*}\arraycolsep=1pt\def\arraystretch{1.3}
 \begin{array}{ll}
-& \hspace{60pt} x + a - \lambda^2 + x_P + x_Q \\
+& \hspace{60pt} x + A - \lambda^2 + x_P + x_Q \\
 x^2 - (x_P + x_Q)\,x + x_P x_Q \;&
-\overline{\smash{\big)}\; x^3 + (a - \lambda^2)\, x^2 \hspace{50pt} + (1 - 2\lambda c)\, x \hspace{37pt} - c^2} \\
+\overline{\smash{\big)}\; x^3 + (A - \lambda^2)\, x^2 \hspace{50pt} + (1 - 2\lambda c)\, x \hspace{37pt} - c^2} \\
 & \hspace{8pt}\underline{x^3 - (x_P + x_Q)\, x^2 \hspace{40pt} + x_P x_Q x} \\
-& \hspace{30pt}(a - \lambda^2 + x_P + x_Q)\, x^2 + (1 - 2\lambda c - x_P x_Q)\, x - c^2 \\
-& \hspace{30pt}(a - \lambda^2 + x_P + x_Q)\, x^2 - (a - \lambda^2 + x_P + x_Q)\,(x_P + x_Q)\, x \\
-& \hspace{30pt}\underline{\hspace{100pt} +\, (a - \lambda^2 + x_P + x_Q)\,x_P x_Q \hspace{30pt}} \\
+& \hspace{30pt}(A - \lambda^2 + x_P + x_Q)\, x^2 + (1 - 2\lambda c - x_P x_Q)\, x - c^2 \\
+& \hspace{30pt}(A - \lambda^2 + x_P + x_Q)\, x^2 - (A - \lambda^2 + x_P + x_Q)\,(x_P + x_Q)\, x \\
+& \hspace{30pt}\underline{\hspace{100pt} +\, (A - \lambda^2 + x_P + x_Q)\,x_P x_Q \hspace{30pt}} \\
 & \hspace{130pt}\dots
 \end{array}
 \end{equation*}
 The polynomial division produces an extremely ugly expression as remainder, but fortunately we do not need to compute it, since we know that it must be zero.
-From the quotient $x + a - \lambda^2 + x_P + x_Q$ we obtain the $x$ coordinate of the third intersection point $R$:
+From the quotient $x + A - \lambda^2 + x_P + x_Q$ we obtain the $x$ coordinate of the third intersection point $R$:
 \begin{equation}
-x_R = \lambda^2 - a - x_P - x_Q \label{eq:xR}
+x_R = \lambda^2 - A - x_P - x_Q \label{eq:xR}
 \end{equation}
 and we obtain the $y$ coordinate by substituting $x_R$ into the line equation~\eqref{eq:line}:
 \begin{equation}
@@ -222,7 +223,7 @@ The group we are about to define has an infinite number of elements when the $x$
 We will now use the results from the last section to construct a group.
 The set of elements is the set of points on the elliptic curve~\eqref{eq:curve}, plus one special element $\infty$ that we call the \emph{point at infinity}:
 \begin{equation}
-E = \{(x,y) \mid y^2 = x^3 + a x^2 + x\} \;\cup\; \{\infty\}
+E = \{(x,y) \mid y^2 = x^3 + A x^2 + x\} \;\cup\; \{\infty\}
 \end{equation}
 The point at infinity has no coordinates, and its purpose is to deal with vertical lines.
 When two different points have the same $x$ coordinate and we draw a vertical line through them, like in \autoref{fig:vertical}, we define the point at infinity to be the third point at which the line ``intersects the curve''.
@@ -254,15 +255,15 @@ Using our results~\eqref{eq:xR} and~\eqref{eq:yR} for the coordinates of the thi
 
 \begin{align}
 P_1 \bullet P_2 = (x_1, y_1) \bullet (x_2, y_2) &= (x_3, y_3) \quad\text{where}\nonumber\\[10pt]
-x_3 = \lambda^2 - a - x_1 - x_2 &= \begin{dcases}
-\left(\frac{y_2 - y_1}{x_2 - x_1}\right)^2 - a - x_1 - x_2 & \text{if } x_1 \neq x_2 \\
-\left(\frac{3x_1^2 + 2ax_1 + 1}{2y_1}\right)^2 - a - 2x_1 & \text{if } x_1 = x_2
+x_3 = \lambda^2 - A - x_1 - x_2 &= \begin{dcases}
+\left(\frac{y_2 - y_1}{x_2 - x_1}\right)^2 - A - x_1 - x_2 & \text{if } x_1 \neq x_2 \\
+\left(\frac{3x_1^2 + 2Ax_1 + 1}{2y_1}\right)^2 - A - 2x_1 & \text{if } x_1 = x_2
 \end{dcases}\label{eq:law-x}\\[15pt]
-y_3 = -(y_1 + \lambda\,(x_3 - x_1)) &= \lambda\,(x_1 - \lambda^2 + a + x_1 + x_2) - y_1 =
-\lambda\,(2x_1 + x_2 + a) - \lambda^3 - y_1 =\label{eq:law-y}\\
+y_3 = -(y_1 + \lambda\,(x_3 - x_1)) &= \lambda\,(x_1 - \lambda^2 + A + x_1 + x_2) - y_1 =
+\lambda\,(2x_1 + x_2 + A) - \lambda^3 - y_1 =\label{eq:law-y}\\
 &= \begin{dcases}
-\frac{(2x_1 + x_2 + a) (y_2 - y_1)}{x_2 - x_1} - \left(\frac{y_2 - y_1}{x_2 - x_1}\right)^3 - y_1 & \text{if } x_1 \neq x_2 \\
-\frac{(2x_1 + x_2 + a) (3x_1^2 + 2ax_1 + 1)}{2y_1} - \left(\frac{3x_1^2 + 2ax_1 + 1}{2y_1}\right)^3 - y_1 & \text{if } x_1 = x_2
+\frac{(2x_1 + x_2 + A) (y_2 - y_1)}{x_2 - x_1} - \left(\frac{y_2 - y_1}{x_2 - x_1}\right)^3 - y_1 & \text{if } x_1 \neq x_2 \\
+\frac{(2x_1 + x_2 + A) (3x_1^2 + 2Ax_1 + 1)}{2y_1} - \left(\frac{3x_1^2 + 2Ax_1 + 1}{2y_1}\right)^3 - y_1 & \text{if } x_1 = x_2
 \end{dcases}\nonumber
 \end{align}
 
@@ -312,8 +313,8 @@ addition y = (2 x1+x2+a) (y2-y1)/(x2-x1)-b (y2-y1)^3/(x2-x1)^3-y1
 doubling x = b (3 x1^2+2 a x1+1)^2/(2 b y1)^2-a-x1-x1
 doubling y = (2 x1+x1+a) (3 x1^2+2 a x1+1)/(2 b y1)-b (3 x1^2+2 a x1+1)^3/(2 b y1)^3-y1
 \end{verbatim}
-This database uses a slightly more general form $b y^2 = x^3 + a x^2 + x$ with an additional parameter $b$.
-We can see that with $b=1$, the formulas in the database equal our formulas~\eqref{eq:law-x} and~\eqref{eq:law-y}.
+This database uses a slightly more general form $B y^2 = x^3 + A x^2 + x$ with an additional parameter $B$.
+We can see that with $B=1$, the formulas in the database equal our formulas~\eqref{eq:law-x} and~\eqref{eq:law-y}.
 The formulas in the EFD are checked using the SageMath computer algebra system.
 
 \paragraph{A note on notation.}
@@ -455,17 +456,17 @@ Let's first derive optimised formulas for combining a group element with itself:
 $P_{2i} = (x_{2i}, y_{2i}) = P_i \bullet P_i = (x, y) \bullet (x, y)$.
 Using the expression in~\eqref{eq:law-x}:
 \begin{align}
-x_{2i} &= \frac{(3x^2 + 2ax + 1)^2}{4y^2} - a - 2x \nonumber\\[5pt]
-&= \frac{(3x^2 + 2ax + 1)^2}{4\,(x^3 + ax^2 + x)} - a - 2x 
-    \quad\text{ since } (x, y) \text { is on the curve } y^2 = x^3 + ax^2 + x \nonumber\\[5pt]
-&= \frac{(3x^2 + 2ax + 1)^2 - 4\,(x^3 + ax^2 + x)(2x + a)}{4\,(x^3 + ax^2 + x)} \nonumber\\[5pt]
-&= \frac{9x^4 + 12ax^3 + (4a^2 + 6)\,x^2 + 4ax + 1 -4\,(2x^4 + 3ax^3 + (a^2 + 2)\,x^2 + ax)}{4\,(x^3 + ax^2 + x)} \nonumber\\[5pt]
-&= \frac{x^4 -2x^2 + 1}{4\,(x^3 + ax^2 + x)} 
-    \;=\; \frac{\frac{X^4}{Z^4} - \frac{2X^2}{Z^2} + 1}{4\,\left(\frac{X^3}{Z^3} + \frac{aX^2}{Z^2} + \frac{X}{Z}\right)}
+x_{2i} &= \frac{(3x^2 + 2Ax + 1)^2}{4y^2} - A - 2x \nonumber\\[5pt]
+&= \frac{(3x^2 + 2Ax + 1)^2}{4\,(x^3 + Ax^2 + x)} - A - 2x 
+    \quad\text{ since } (x, y) \text { is on the curve } y^2 = x^3 + Ax^2 + x \nonumber\\[5pt]
+&= \frac{(3x^2 + 2Ax + 1)^2 - 4\,(x^3 + Ax^2 + x)(2x + A)}{4\,(x^3 + Ax^2 + x)} \nonumber\\[5pt]
+&= \frac{9x^4 + 12Ax^3 + (4A^2 + 6)\,x^2 + 4Ax + 1 -4\,(2x^4 + 3Ax^3 + (A^2 + 2)\,x^2 + Ax)}{4\,(x^3 + Ax^2 + x)} \nonumber\\[5pt]
+&= \frac{x^4 -2x^2 + 1}{4\,(x^3 + Ax^2 + x)} 
+    \;=\; \frac{\frac{X^4}{Z^4} - \frac{2X^2}{Z^2} + 1}{4\,\left(\frac{X^3}{Z^3} + \frac{AX^2}{Z^2} + \frac{X}{Z}\right)}
     \quad\text{ using projective coordinates } x=\frac{X}{Z} \label{eq:alt-doubling}\\[5pt]
-&= \frac{\frac{1}{Z^4}\,(X^4 - 2X^2 Z^2 + Z^4)}{\frac{4}{Z^3}\,(X^3 + aX^2 Z + X Z^2)}
-    \;=\; \frac{X^4 - 2X^2 Z^2 + Z^4}{4XZ\,(X^2 + aX Z + Z^2)}
-    \;=\; \frac{(X^2 - Z^2)^2}{4XZ\,(X^2 + aX Z + Z^2)} \nonumber
+&= \frac{\frac{1}{Z^4}\,(X^4 - 2X^2 Z^2 + Z^4)}{\frac{4}{Z^3}\,(X^3 + AX^2 Z + X Z^2)}
+    \;=\; \frac{X^4 - 2X^2 Z^2 + Z^4}{4XZ\,(X^2 + AX Z + Z^2)}
+    \;=\; \frac{(X^2 - Z^2)^2}{4XZ\,(X^2 + AX Z + Z^2)} \nonumber
 \end{align}
 Thus, we obtain the following projective formulas for point doubling:
 \begin{equation}
@@ -473,7 +474,7 @@ Thus, we obtain the following projective formulas for point doubling:
 \left(\frac{X_{2i}}{Z_{2i}}, \frac{Y_{2i}}{Z_{2i}}\right) \quad\text{where}\quad
 \begin{array}{l}
     X_{2i} = (X_i^2 - Z_i^2)^2 \\[5pt]
-    Z_{2i} = 4X_i Z_i\,(X_i^2 + aX_i Z_i + Z_i^2)
+    Z_{2i} = 4X_i Z_i\,(X_i^2 + AX_i Z_i + Z_i^2)
 \end{array}\label{eq:projective-double}
 \end{equation}
 
@@ -489,12 +490,12 @@ We assume that $P_i \ne P_{i+1}$ (because we know that $P_{i+1} = P^{i+1} = P^i 
 Therefore we can assume $x_1 \neq x_2$.
 Taking equation~\eqref{eq:law-x} as our starting point:
 \begin{align}
-x_{2i+1} &= \left(\frac{y_2 - y_1}{x_2 - x_1}\right)^2 - a - x_1 - x_2 \nonumber\\[5pt]
-&= \frac{y_2^2 - 2y_1 y_2 + y_1^2 - (a + x_1 + x_2)\,(x_2 - x_1)^2}{(x_2 - x_1)^2} \nonumber\\[5pt]
-&= \frac{x_2^3 + ax_2^2 + x_2 + x_1^3 + ax_1^2 + x_1 - 2y_1 y_2}{(x_2 - x_1)^2} \nonumber\\
-    &\quad - \frac{ax_2^2 - 2ax_1 x_2 + ax_1^2 + x_1 x_2^2 - 2 x_1^2 x_2 + x_1^3 + x_2^3 - 2x_1 x_2^2 + x_1^2 x_2}{(x_2 - x_1)^2} \nonumber\\[5pt]
-&= \frac{x_1 + x_2 + x_1^2 x_2 + x_1 x_2^2 + 2a x_1 x_2 - 2y_1 y_2}{(x_2 - x_1)^2} \nonumber\\[5pt]
-&= \frac{(x_1 + x_2)\,(1 + x_1 x_2) + 2a x_1 x_2 - 2y_1 y_2}{(x_2 - x_1)^2} \label{eq:add-x}
+x_{2i+1} &= \left(\frac{y_2 - y_1}{x_2 - x_1}\right)^2 - A - x_1 - x_2 \nonumber\\[5pt]
+&= \frac{y_2^2 - 2y_1 y_2 + y_1^2 - (A + x_1 + x_2)\,(x_2 - x_1)^2}{(x_2 - x_1)^2} \nonumber\\[5pt]
+&= \frac{x_2^3 + Ax_2^2 + x_2 + x_1^3 + Ax_1^2 + x_1 - 2y_1 y_2}{(x_2 - x_1)^2} \nonumber\\
+    &\quad - \frac{Ax_2^2 - 2Ax_1 x_2 + Ax_1^2 + x_1 x_2^2 - 2 x_1^2 x_2 + x_1^3 + x_2^3 - 2x_1 x_2^2 + x_1^2 x_2}{(x_2 - x_1)^2} \nonumber\\[5pt]
+&= \frac{x_1 + x_2 + x_1^2 x_2 + x_1 x_2^2 + 2A x_1 x_2 - 2y_1 y_2}{(x_2 - x_1)^2} \nonumber\\[5pt]
+&= \frac{(x_1 + x_2)\,(1 + x_1 x_2) + 2A x_1 x_2 - 2y_1 y_2}{(x_2 - x_1)^2} \label{eq:add-x}
 \end{align}
 
 Next, we use the fact that $P_{i+1} = P_i \bullet P$.
@@ -503,19 +504,19 @@ Let $P = (x_P, y_P)$, $P_i = (x_1, y_1)$, and $P_{i+1} = (x_2, y_2)$.
 Because $P_i^{-1} = (x_1, -y_1)$ we have
 \begin{align*}
 P = (x_P, y_P) = P_i^{-1} \bullet P_{i+1} = (x_1, -y_1) \bullet (x_2, y_2) \quad\Longrightarrow\quad
-x_P = \frac{(x_1 + x_2)\,(1 + x_1 x_2) + 2a x_1 x_2 + 2y_1 y_2}{(x_2 - x_1)^2}
+x_P = \frac{(x_1 + x_2)\,(1 + x_1 x_2) + 2A x_1 x_2 + 2y_1 y_2}{(x_2 - x_1)^2}
 \end{align*}
 That is, $x_P$ equals the expression~\eqref{eq:add-x} with $y_1$ inverted.
 To clear the remaining occurrences of $y_1$ and $y_2$ from~\eqref{eq:add-x}, without introducing square roots, we multiply $x_{2i+1}$ and $x_P$ (derivation from~\cite{Bernstein:2017fm}):
 \begin{align*}
 x_P x_{2i+1}\,(x_2 - x_1)^4 &=
-    ((x_1 + x_2)\,(1 + x_1 x_2) + 2a x_1 x_2 + 2y_1 y_2)\,((x_1 + x_2)\,(1 + x_1 x_2) + 2a x_1 x_2 - 2y_1 y_2) \\
-&= ((x_1 + x_2)\,(1 + x_1 x_2) + 2a x_1 x_2)^2 - (2y_1 y_2)^2 \\
-&= ((x_1 + x_2)\,(1 + x_1 x_2) + 2a x_1 x_2)^2 - 4\,(x_1^3 + ax_1^2 + x_1)\,(x_2^3 + ax_2^2 + x_2) \\
-&= (x_1 + x_2)^2\, (1 + x_1 x_2)^2 + 4ax_1 x_2\,(x_1 + x_2)\,(1 + x_1 x_2) + 4a^2 x_1^2 x_2^2 \\
-    &\quad -4\,(x_1^3 + x_1)\,(x_2^3 + x_2) - 4ax_1^2\,(x_2^3 + x_2) - 4ax_2^2\,(x_1^3 + x_1) - 4a^2 x_1^2 x_2^2 \\
-&= (x_1 + x_2)^2\, (1 + x_1 x_2)^2 + 4ax_1 x_2\,(x_1 + x_2 + x_1^2 x_2 + x_1 x_2^2) \\
-    &\quad -4\,(x_1^3 + x_1)\,(x_2^3 + x_2) - 4ax_1 x_2\,(x_1 x_2^2 + x_1 + x_1^2 x_2 + x_2) \\
+    ((x_1 + x_2)\,(1 + x_1 x_2) + 2A x_1 x_2 + 2y_1 y_2)\,((x_1 + x_2)\,(1 + x_1 x_2) + 2A x_1 x_2 - 2y_1 y_2) \\
+&= ((x_1 + x_2)\,(1 + x_1 x_2) + 2A x_1 x_2)^2 - (2y_1 y_2)^2 \\
+&= ((x_1 + x_2)\,(1 + x_1 x_2) + 2A x_1 x_2)^2 - 4\,(x_1^3 + Ax_1^2 + x_1)\,(x_2^3 + Ax_2^2 + x_2) \\
+&= (x_1 + x_2)^2\, (1 + x_1 x_2)^2 + 4Ax_1 x_2\,(x_1 + x_2)\,(1 + x_1 x_2) + 4A^2 x_1^2 x_2^2 \\
+    &\quad -4\,(x_1^3 + x_1)\,(x_2^3 + x_2) - 4Ax_1^2\,(x_2^3 + x_2) - 4Ax_2^2\,(x_1^3 + x_1) - 4A^2 x_1^2 x_2^2 \\
+&= (x_1 + x_2)^2\, (1 + x_1 x_2)^2 + 4Ax_1 x_2\,(x_1 + x_2 + x_1^2 x_2 + x_1 x_2^2) \\
+    &\quad -4\,(x_1^3 + x_1)\,(x_2^3 + x_2) - 4Ax_1 x_2\,(x_1 x_2^2 + x_1 + x_1^2 x_2 + x_2) \\
 &= (x_1 + x_2)^2\, (1 + x_1 x_2)^2 - 4\,(x_1^3 + x_1)\,(x_2^3 + x_2) \\
 &= (x_1^2 + 2x_1 x_2 + x_2^2)\,(1 + 2x_1 x_2 + x_1^2 x_2^2) - 4\,(x_1^3 x_2^3 + x_1 x_2^3 + x_1^3 x_2 + x_1 x_2) \\
 &= x_1^2 + 2x_1 x_2 + x_2^2 + 2x_1^3 x_2 + 4x_1^2 x_2^2 + 2x_1 x_2^3 + x_1^4 x_2^2 + 2x_1^3 x_2^3 + x_1^2 x_2^4 \\
@@ -540,7 +541,7 @@ Thus, we can compute one step of the Montgomery ladder using the formulas from~\
 \begin{align}
 X_{2i} &= (X_i^2 - Z_i^2)^2 &
 X_{2i+1} &= (X_i X_{i+1} - Z_i Z_{i+1})^2 \label{eq:ladder-step}\\
-Z_{2i} &= 4X_i Z_i\,(X_i^2 + aX_i Z_i + Z_i^2) &
+Z_{2i} &= 4X_i Z_i\,(X_i^2 + AX_i Z_i + Z_i^2) &
 Z_{2i+1} &= x_P\,(X_i Z_{i+1} - X_{i+1} Z_i)^2 \nonumber
 \end{align}
 These formulas never use the $y$ coordinate, allowing us to operate on the $x$ coordinate alone.
@@ -552,8 +553,6 @@ One desirable property of these formulas is that each step of the ladder perform
 This is important because in Diffie-Hellman's use of scalar multiplication, the scalar is a private key.
 We must ensure that the execution time of the algorithm does not depend on the value of the scalar, since such variability in timing could leak the private key through side-channel attacks.
 We will see later how exactly this constant-time property is achieved in TweetNaCl.
-
-\paragraph{TODO:} Why do Bernstein and Lange~\cite[Theorem 4.4]{Bernstein:2017fm} have an unexplained extra factor of 4 in the formulas for $X_{2i+1}$ and $Z_{2i+1}$?
 
 \subsection{Handling the point at infinity}
 
@@ -573,15 +572,15 @@ The following assumes that $x_P \ne 0$.
 \begin{itemize}
     \item Let $Z_i=0$ and $X_i \ne 0$, so $P_i = \infty$.
         Then $Z_{2i}=0$ and $X_{2i} = X_i^4 \ne 0$, so $P_{2i} = P_i \bullet P_i = \infty\bullet\infty = \infty$ as required by~\eqref{eq:law-identity}.
-    \item Let $Z_i \ne 0$. We consider two cases depending on the value of $X_i^3 + aX_i^2 Z_i + X_i Z_i^2$:
+    \item Let $Z_i \ne 0$. We consider two cases depending on the value of $X_i^3 + AX_i^2 Z_i + X_i Z_i^2$:
         \begin{enumerate}
-            \item Assume that $X_i^3 + aX_i^2 Z_i + X_i Z_i^2 = 0$; hence $Z_{2i} = 0$.
+            \item Assume that $X_i^3 + AX_i^2 Z_i + X_i Z_i^2 = 0$; hence $Z_{2i} = 0$.
                 To prove that $X_{2i} \ne 0$, suppose to the contrary that $X_{2i}=0$; then $X_i^2 = Z_i^2$ so $Z_i = \pm X_i$.
-                Substituting into $X_i^3 + aX_i^2 Z_i + X_i Z_i^2 = 0$ yields $X_i^3 \pm aX_i^3 + X_i^3 = 0$, so $aX_i^3 = \pm 2X_i^3$.
-                Since $Z_i \ne 0$ we have $X_i \ne 0$, and hence $a = \pm 2$.
-                However, this contradicts the assumption that $a^2 \ne 4$, stated at the beginning of \autoref{sec:curve-arithmetic}.
+                Substituting into $X_i^3 + AX_i^2 Z_i + X_i Z_i^2 = 0$ yields $X_i^3 \pm AX_i^3 + X_i^3 = 0$, so $AX_i^3 = \pm 2X_i^3$.
+                Since $Z_i \ne 0$ we have $X_i \ne 0$, and hence $A = \pm 2$.
+                However, this contradicts the assumption that $A^2 \ne 4$, stated at the beginning of \autoref{sec:curve-arithmetic}.
                 Therefore we have $(X_{2i}, Z_{2i}) \ne (0, 0)$ as required.
-            \item Assume that $X_i^3 + aX_i^2 Z_i + X_i Z_i^2 \ne 0$, which implies $X_i \ne 0$.
+            \item Assume that $X_i^3 + AX_i^2 Z_i + X_i Z_i^2 \ne 0$, which implies $X_i \ne 0$.
                 Since $Z_i \ne 0$ we have $Z_{2i} \ne 0$, so we have $(X_{2i}, Z_{2i}) \ne (0, 0)$ as required.
         \end{enumerate}
     \item Let $Z_i \ne 0$, $Z_{i+1} \ne 0$, and $P_i$ has the same $x$ coordinate as $P_{i+1}$, i.e.\ $X_i/Z_i = X_{i+1}/Z_{i+1}$.
@@ -598,7 +597,7 @@ The following assumes that $x_P \ne 0$.
                 Using assumption $X_i/Z_i = X_{i+1}/Z_{i+1}$ we have $X_{i+1}/Z_{i+1} = x_{i+1} = -1$, so the affine $x$ coordinate of $P_{i+1}$ equals $-1$.
             \item If $X_i + Z_i \ne 0$ then $X_{i+1} = Z_{i+1}$ so $X_{i+1}/Z_{i+1} = x_{i+1} = 1$, so the affine $x$ coordinate of $P_{i+1}$ equals $1$.
         \end{enumerate}
-        In both cases, we use the point doubling expression~\eqref{eq:alt-doubling} to calculate the $x$ coordinate of $P_{i+1} \bullet P_{i+1}$, which is $(x_{i+1}^4 -2x_{i+1}^2 + 1)/(4x_{i+1}^3 + 4ax_{i+1}^2 + 4x_{i+1}) = 0$ for $x_{i+1} = \pm 1$.
+        In both cases, we use the point doubling expression~\eqref{eq:alt-doubling} to calculate the $x$ coordinate of $P_{i+1} \bullet P_{i+1}$, which is $(x_{i+1}^4 -2x_{i+1}^2 + 1)/(4x_{i+1}^3 + 4Ax_{i+1}^2 + 4x_{i+1}) = 0$ for $x_{i+1} = \pm 1$.
         Note that $P_{i+1} = P_i \bullet P$, so $P = P_i^{-1} \bullet P_{i+1} = P_{i+1} \bullet P_{i+1}$ due to our earlier observation that $P_i^{-1} = P_{i+1}$.
         Hence, the $x$ coordinate of $P$ equals zero, which contradicts our earlier assumption that $x_P \ne 0$.
         Thus we have $X_{2i+1} \ne 0$ as required.
@@ -630,22 +629,12 @@ We ignore additions and subtractions since they are cheap by comparison.
 
 If we break down the formulas~\eqref{eq:ladder-step} into one multiplication per equation, reusing common sub-expressions where possible, we see that each step of the ladder requires 14 multiplications:
 \begin{align*}
-    v_1 &= X_i^2 &
-    v_5 &= a v_3 &
-    v_6 &= X_i X_{i+1} &
-    v_{10} &= (v_8 - v_9)^2 \\
-    v_2 &= Z_i^2 &
-    X_{2i} &= (v_1 - v_2)^2 &
-    v_7 &= Z_i Z_{i+1} &
-    X_{2i+1} &= (v_6 - v_7)^2 \\
-    v_3 &= X_i Z_i &
-    Z_{2i} &= v_4\,(v_1 + v_5 + v_2) &
-    v_8 &= X_i Z_{i+1} &
-    Z_{2i+1} &= x_P v_{10} \\
-    v_4 &= 4 v_3 &&&
-    v_9 &= X_{i+1} Z_i
+    v_1 &= X_i^2    & v_5    &= A v_3                   & v_6 &= X_i X_{i+1}    & v_{10}   &= (v_8 - v_9)^2 \\
+    v_2 &= Z_i^2    & X_{2i} &= (v_1 - v_2)^2           & v_7 &= Z_i Z_{i+1}    & X_{2i+1} &= (v_6 - v_7)^2 \\
+    v_3 &= X_i Z_i  & Z_{2i} &= v_4\,(v_1 + v_5 + v_2)  & v_8 &= X_i Z_{i+1}    & Z_{2i+1} &= x_P v_{10}    \\
+    v_4 &= 4 v_3    &        &                          & v_9 &= X_{i+1} Z_i
 \end{align*}
-Some authors count multiplication by a constant ($4$ or $a$, in the case of $v_4$ and $v_5$) and squaring separately from multiplication.
+Some authors count multiplication by a constant ($4$ or $A$, in the case of $v_4$ and $v_5$) and squaring separately from multiplication.
 However, TweetNaCl uses the same multiplication function in all cases, so for simplicity we count all types of multiplication equally.
 
 \begin{listing}
@@ -711,9 +700,10 @@ int crypto_scalarmult(u8 *q,const u8 *n,const u8 *p)
 
 In contrast to the above 14 multiplications, TweetNaCl uses only 10 multiplications per step.
 In this section we focus on how to derive the algorithm in \autoref{code:scalarmult} from the formulas~\eqref{eq:ladder-step}.
-The main ladder loop in lines~20 to~44 of \autoref{code:scalarmult} calls the following functions:
+The main ladder loop in lines~20 to~44 of \autoref{code:scalarmult} performs the following operations:
 \begin{itemize}
-    \item \verb|sel25519(a,b,r)| examines the value \verb|r|, which is either 0 or 1.
+    \item \verb|r=(z[i>>3]>>(i&7))&1| sets \verb|r| to be the \verb|i|th bit from the little-endian byte array \verb|z| (which was previously set to be a copy of the parameter \verb|n|, with a few tweaks explained later).
+    \item \verb|sel25519(a,b,r)| examines the bit \verb|r|, which is either 0 or 1.
         If \verb|r == 0|, the function does nothing.
         If \verb|r == 1|, the function swaps the values in the two variables \verb|a| and \verb|b|.
         It does this in constant time, so the ``do nothing'' case takes the same execution time as the swapping case.
@@ -725,14 +715,49 @@ The main ladder loop in lines~20 to~44 of \autoref{code:scalarmult} calls the fo
 \end{itemize}
 We will discuss the implementation of these functions in \autoref{sec:field-arithmetic}.
 
-Manipulation of $X_{2i}$:
+Each iteration of the loop takes as input the values in variables \verb|a|, \verb|b|, \verb|c|, \verb|d|, \verb|x|, and \verb|z|, as well as the constant \verb|_121665 = {0xDB41,1}|, which contains the number \verb|0x1DB41| = 121665 (split into 16-bit chunks as explained in \autoref{sec:field-arithmetic}).
+As output it writes new values to the variables \verb|a|, \verb|b|, \verb|c|, and \verb|d|.
+Moreover, it uses \verb|e| and \verb|f| as temporary variables.
+In the code of \autoref{code:scalarmult}, variables are reused.
+For better readability, we give a new name to each variable assignment in the following breakdown of the operations.
+The 18 arithmetic operations in the Montgomery ladder loop (10 multiplications/squarings and 8 additions/subtractions) compute the following expressions:
 \begin{align*}
-X_{2i} &= (X^2 - Z^2)^2 \\
-&= X^4 - 2X^2 Z^2 + Z^4 \\
-&= X^4 + 2X^3 Z + X^2 Z^2 - 2X^3 Z - 4 X^2 Z^2 - 2X Z^3 + X^2 Z^2 + 2X Z^3 + Z^4 \\
-&= (X^2 + 2XZ + Z^2)\,(X^2 - 2XZ + Z^2) \\
-&= (X + Z)^2\,(X - Z)^2
+    & \texttt{A(e,a,c);} & v_1    &= a + c \\
+    & \texttt{Z(a,a,c);} & v_2    &= a - c \\
+    & \texttt{A(c,b,d);} & v_3    &= b + d \\
+    & \texttt{Z(b,b,d);} & v_4    &= b - d \\
+    & \texttt{S(d,e);}   & v_5    &= v_1^2          &&= (a + c)^2 \\
+    & \texttt{S(f,a);}   & v_6    &= v_2^2          &&= (a - c)^2 \\
+    & \texttt{M(a,c,a);} & v_7    &= v_3 \cdot v_2  &&= (b + d)\,(a - c) = ab - bc + ad - cd \\
+    & \texttt{M(c,b,e);} & v_8    &= v_4 \cdot v_1  &&= (b - d)\,(a + c) = ab + bc - ad - cd \\
+    & \texttt{A(e,a,c);} & v_9    &= v_7 + v_8      &&= 2\,(ab - cd) \\
+    & \texttt{Z(a,a,c);} & v_{10} &= v_7 - v_8      &&= 2\,(ad - bc) \\
+    & \texttt{S(b,a);}   & v_{11} &= v_{10}^2       &&= 4\,(ad - bc)^2 \\
+    & \texttt{Z(c,d,f);} & v_{12} &= v_5 - v_6      &&= (a + c)^2 - (a - c)^2 = a^2 + 2ac + c^2 - a^2 + 2ac - c^2 = 4ac \\
+    & \texttt{M(a,c,{\char`_}121665);} & v_{13} &= 121665 \cdot v_{12} &&= 486660\, ac = (A - 2)\,ac \\
+    & \texttt{A(a,a,d);} & v_{14} &= v_{13} + v_5   &&= (A - 2)\,ac + a^2 + 2ac + c^2 = a^2 + Aac + c^2 \\
+    & \texttt{M(c,c,a);} & v_{15} &= v_{12} \cdot v_{14} &&= 4ac\, (a^2 + Aac + c^2) \\
+    & \texttt{M(a,d,f);} & v_{16} &= v_5 \cdot v_6  &&= (a + c)^2\,(a - c)^2 = (a^2 + 2ac + c^2)\,(a^2 - 2ac + c^2) \\
+    &                    &        &                 &&= a^4 + 2a^3 c + a^2 c^2 - 2a^3 c - 4 a^2 c^2 - 2a c^3 + a^2 c^2 + 2a c^3 + c^4 \\
+    &                    &        &                 &&= a^4 - 2a^2 c^2 + c^4 = (a^2 - c^2)^2 \\
+    & \texttt{M(d,b,x);} & v_{17} &= v_{11} \cdot x &&= 4x\,(ad - bc)^2 \\
+    & \texttt{S(b,e);}   & v_{18} &= v_9^2          &&= 4\,(ab - cd)^2
 \end{align*}
+
+Let $a = X_i$, $b = X_{i+1}$, $c = Z_i$, $d = Z_{i+1}$, and $x = x_P$ at the start of a loop iteration.
+Further let the bit \verb|r| be 0, so the \verb|sel25519| operations have no effect.
+Then the expressions above match the equations \eqref{eq:ladder-step} with $A = 486662$, $v_{16} = X_{2i}$, $v_{18} = 4X_{2i+1}$, $v_{15} = Z_{2i}$, and $v_{17} = 4Z_{2i+1}$.
+The values $(v_{16}, v_{18}, v_{15}, v_{17})$ are written to variables \verb|a|, \verb|b|, \verb|c|, and \verb|d| respectively, forming the input to the next iteration.
+
+If the bit \verb|r| is 1, the values in \verb|a| and \verb|b| are swapped before and after the computation of these expressions, and likewise the values in \verb|c| and \verb|d| are swapped.
+Thus, the inputs to the computation are $a = X_{i+1}$, $b = X_i$, $c = Z_{i+1}$, and $d = Z_i$, and the outputs are $v_{16} = X_{2i+2}$, $v_{18} = 4X_{2i+1}$, $v_{15} = Z_{2i+2}$, and $v_{17} = 4Z_{2i+1}$.
+After the final swaps, the variables \verb|a|, \verb|b|, \verb|c|, and \verb|d| contain the values $(v_{18}, v_{16}, v_{17}, v_{15})$.
+
+Thus, each loop iteration maps input $(X_i, Z_i, X_{i+1}, Z_{i+1})$ to either output $(X_{2i}, Z_{2i}, 4X_{2i+1}, 4Z_{2i+1})$ or output $(4X_{2i+1}, 4Z_{2i+1}, X_{2i+2}, Z_{2i+2})$ depending on the value of \verb|r|.
+This exactly matches the Montgomery ladder step~\eqref{eq:ladder}, except for the additional factor of 4 in $X_{2i+1}$ and $Z_{2i+1}$.
+However, since these two variables are just an expanded representation of the fraction $x_{2i+1} = X_{2i+1}/Z_{2i+1}$, these two factors of 4 cancel out and have no effect on the final result.
+
+%TODO \url{https://en.wikipedia.org/wiki/Montgomery_curve} has some detail on formulas for group arithmetic
 
 \section{Finite field arithmetic}\label{sec:field-arithmetic}
 
