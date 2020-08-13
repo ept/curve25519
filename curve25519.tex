@@ -838,6 +838,13 @@ The operation \verb|p[i] ^= t| thus has no effect if \verb|b == 0|, and sets \ve
 Likewise, \verb|q[i]| is set to \verb|p[i]| if \verb|b == 1|.
 This function performs exactly the same operations regardless of the value of \verb|b|, so it is constant-time.
 
+% Montgomery curves and their arithmetic https://eprint.iacr.org/2017/212.pdf
+
+% Discussion of clamping https://twitter.com/Sc00bzT/status/1270331532490747904
+
+% Other things to look at: NIST P-256 curve; Ed25519; secp256k1 ECDSA (bitcoin); petlib https://petlib.readthedocs.io/en/latest/
+% Ristretto255 https://ietf.org/id/draft-irtf-cfrg-ristretto255-00.html
+
 \bibliographystyle{plainurl}
 \bibliography{references}
 
