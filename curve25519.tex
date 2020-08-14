@@ -27,39 +27,320 @@
 \def\subsectionautorefname{Section}%
 \def\subsubsectionautorefname{Section}%
 
-\title{Deriving an implementation of Curve25519 from first principles}
+\title{Implementing Curve25519: Every Line Explained}
 \author{Martin Kleppmann}
 \date{}
 \maketitle
 \begin{abstract}
-TODO
+Many textbooks cover the concepts behind Elliptic Curve Cryptography, but few discuss the details of how you go from the equations to an actual working and secure implementation of the algorithms.
+Textbooks also tend to leave out the tedious algebraic derivations, making it difficult to reproduce the results they present.
+On the other hand, the code of cryptographic libraries can be rather opaque to the untrained eye, and it is rarely accompanied by detailed documentation explaining how the code came about and why it is correct.
+
+The goal of this document is to bridge this gap between the mathematics and implementation of elliptic curve cryptography.
+We do this by carefully studying one particular algorithm, the Curve25519 function for Diffie-Hellman key agreement, and its implementation in the TweetNaCl library.
+This library is designed for code readability, but it nevertheless has strong security properties, such as using constant-time algorithms to prevent side-channel attacks.
+
+Starting from first principles, this document shows how to re-derive the TweetNaCl implementation of Curve25519, including all of the tedious algebra, fully explaining and justifying every line of code.
+The explanation assumes no prior knowledge of elliptic curves, and it includes a brief introduction to the necessary mathematical background.
+I hope that this will be helpful to anyone wanting to learn how elliptic curve cryptography works in practice.
 \end{abstract}
 
 \section{Introduction}
 
-Many textbooks cover the concepts behind Elliptic Curve Cryptography~\cite{Cohen:2006,Hankerson:2004}, but few discuss the details of how you go from the equations to an actual working and secure implementation of the algorithms.
-They also tend to leave out the tedious algebraic derivations, making it difficult to convince ourselves that the results they present are really correct.
-On the other hand, cryptographic libraries don't tend to have much documentation explaining how their code came about and why it is correct.
+Curve25519~\cite{Bernstein:2006kw} is a very widely deployed elliptic curve: it is used for Diffie-Hellman key agreement in the X25519 standard~\cite{X25519}, which is a mandatory algorithm in TLS 1.3~\cite{TLS13}, securing a huge number of HTTPS connections in web browsers worldwide.
+It is also used for encryption in WhatsApp~\cite{WhatsAppWhitepaper}, Signal~\cite{Marlinspike:2016}, and various other systems and protocols.
+However, the standard textbooks on elliptic curve cryptography \cite{Blake:1999,Cohen:2006,Hankerson:2004,Koblitz:1994} predate Curve25519, and I have struggled to find good resources that explain how practical implementations of this algorithm actually work.
+Glancing at an implementation of Curve25519 (see, for example, \autoref{code:scalarmult} on page~\pageref{code:scalarmult}) reveals mysterious sequences of arithmetic operations with few comments, explanation, or justification.
 
-The goal of this document is to bridge the gap between the mathematics and the code for one particular elliptic curve algorithm, the Curve25519 function for Diffie-Hellman key agreement~\cite{Bernstein:2006kw}.
-Curve25519 is the basis of the X25519 standard~\cite{X25519}, which is a mandatory algorithm in TLS 1.3~\cite{TLS13}, and is also used in WhatsApp~\cite{WhatsAppWhitepaper}, Signal~\cite{Marlinspike:2016}, and various other systems and protocols.
+The goal of this document is to provide an introduction to elliptic curve cryptography by means of carefully analysing every line of code of one particular implementation of Curve25519.
+It shows how the algorithm is derived from basic principles, walking through the algebraic derivations step by step.
+No advanced mathematics background is required: all that is needed is some basic modular arithmetic, which should be covered in most undergraduate computer science courses.
 
-We will examine the implementation of Curve25519 in TweetNaCl~\cite{Bernstein:2014ca,TweetNaCl}, a small but practical cryptography library with the same API as NaCl~\cite{NaCl,Bernstein:2012}.
+The implementation analysed in this document is TweetNaCl~\cite{Bernstein:2014ca,TweetNaCl}, a small but practical cryptography library with the same API as NaCl~\cite{NaCl,Bernstein:2012}.
 (The name derives from the fact that the implementation fits in 100 tweets of up to 140 characters each.)
-TweetNaCl is originally in C, but its simplicity has made it popular for porting to various other languages, such as JavaScript~\cite{TweetNaCljs}.
+TweetNaCl is originally written in C, but its simplicity has made it popular for porting to various other languages, such as JavaScript~\cite{TweetNaCljs}.
 Despite its simplicity, TweetNaCl has strong security properties that we expect of fully-fledged cryptography libraries: in particular, it uses constant-time algorithms to prevent side-channel attacks (that is, it performs no branches or array lookups based on secret values), and it is secure against all known attacks.
 
 TweetNaCl advertises itself as ``auditable''~\cite{Bernstein:2014ca} in the sense that its code is short and simple enough that its correctness can be established through code review.
-However, to our knowledge, no detail of any such audit has been published.
+However, to my knowledge, no detail of any such audit has been published.
 The JavaScript port has indeed been professionally audited, but the report~\cite{TweetNaClAudit} does not go into any technical detail.
 Previous analyses of NaCl/TweetNaCl~\cite{Bernstein:2009,Janssen:2014} give justification for some of the algorithms, but also leave many details unexplained.
+This document partially fills that gap: we discuss only Curve25519, but not the other algorithms that appear in TweetNaCl, such as the Salsa20 stream cipher, the Poly1305 authenticator, or the Ed25519 signature scheme.
 
-Therefore, in this document, we will re-derive the TweetNaCl implementation of Curve25519 from first principles, including all of the tedious algebra.
-(We will not discuss the other algorithms that appear in TweetNaCl, such as the Salsa20 stream cipher, the Poly1305 authenticator, or the Ed25519 signature scheme.)
-The goal is to fully explain and justify every line of code that appears in the implementation.
-This document assumes only a basic background in discrete mathematics (such as modular arithmetic), and requires no prior knowledge on elliptic curves.
+Unlike HACL*~\cite{HACLStar}, which contains a formally verified implementation of Curve25519~\cite{Zinzindohoue:2017fc}, the goal of this document is not so much to verify that TweetNaCl is correct, but rather to learn how elliptic curve cryptography works by carefully studying one particular algorithm and its implementation.
 
-Unlike HACL*~\cite{HACLStar}, which contains a formally verified implementation of Curve25519~\cite{Zinzindohoue:2017fc}, the goal of this document is not so much to verify that TweetNaCl is correct, but rather to learn how Elliptic Curve Cryptography works by carefully studying one particular algorithm and its implementation.
+\section{Background}\label{sec:background}
+
+This section briefly introduces the mathematical tools and concepts that are needed for later sections.
+
+\subsection{Modular Arithmetic}\label{sec:modular-arithmetic}
+
+The set of \emph{integers modulo} $p$ is $\mathbb{Z}_p = \{0, 1, \dots, p-1\} = [0,\, p-1]$.
+In cryptography, computations are often performed modulo $p$.
+This means that if a calculation would return a result outside of the range of 0 to $p-1$, we let it ``wrap around'' by adding or subtracting $p$ until we get a number between 0 and $p-1$, inclusive.
+
+For example, if we are working modulo 7, then $1+1=2$, $2+1=3$, \dots, $5+1=6$, but $6+1$ wraps around to $0$.
+We write this as $6+1 \equiv 0 \pmod{7}$.
+This is similar to integer overflow in the C programming language, where e.g.\ operations on unsigned 32-bit integers are performed modulo $2^{32}$.
+
+In general, we say that two integers $a, b \in \mathbb{Z}$ are \emph{congruent modulo $p$}, written $a \equiv b \pmod{p}$, if and only if there exists $k \in \mathbb{Z}$ such that $a - b = kp$.
+That is, we can convert between $a$ and $b$ by adding or subtracting $p$ repeatedly.
+When we bring a number within the range of $[0,\, p-1]$ by adding or subtracting multiples of $p$, we call that process \emph{reduction modulo $p$}.
+Reducing $a$ modulo $p$ is written as $[a]_p$.
+
+The $\equiv$ operator for congruence modulo $p$ behaves in many ways like an equals sign.
+For example, if $a \equiv b \pmod{p}$, then $a+c \equiv b+c \pmod{p}$, and $a \cdot c \equiv b \cdot c \pmod{p}$.
+That is, we can substitute one expression for another expression if those expressions are congruent modulo $p$.
+
+This means that when a calculation is performed modulo $p$, we can reduce modulo $p$ after each step of the calculation.
+For example, say we want to calculate $3 \cdot (5 + 6)$ modulo 7.
+Then we can first calculate $5+6$ and reduce it modulo $7$, i.e.\ $5+6 = 11 \equiv 4 \pmod{7}$, and then calculate $3 \cdot 4 = 12 \equiv 5 \pmod{7}
+$.
+The result is the same as if we calculated $3 \cdot (5 + 6) = 3 \cdot 11 = 33 = 4 \cdot 7 + 5 \equiv 5 \pmod{7}$.
+
+Reduction modulo $p$ is very useful when performing calculations on a computer, since it allows us to represent values in a fixed number of bits.
+For example, if $p \le 2^n$, then any number in $\mathbb{Z}_p$ fits in $n$ bits.
+
+In cryptography, $p$ is often a large prime number.
+Curve25519 uses arithmetic modulo $p=2^{255}-19=\verb|0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed|$ in hexadecimal (hence the name of the curve), so the numbers in the curve calculations fit in 255 bits (just under 32 bytes).
+The fact that $2^{255}-19$ is a prime number can be checked using algorithms for primality testing.
+
+\subsection{Groups}\label{sec:groups}
+
+An \emph{abelian group} is a set $E$ together with an operation $\bullet$.
+The operation combines two elements of the set, denoted $a \bullet b$ for $a, b \in E$.
+Moreover, the operation must satisfy the following requirements:
+\begin{description}
+\item[Closure:] For all $a, b \in E$, the result of the operation $a \bullet b$ is also in $E$.
+\item[Commutativity:] For all $a, b \in E$ we have $a \bullet b = b \bullet a$.
+\item[Associativity:] For all $a, b, c \in E$ we have $(a \bullet b) \bullet c = a \bullet (b \bullet c)$.
+\item[Identity element:] There exists an element $e \in E$, called the \emph{identity element} or \emph{neutral element}, such that for all $a \in E$ we have $e \bullet a = a \bullet e = a$.
+\item[Inverse element:] For every $a \in E$ there exists an element $b \in E$ such that $a \bullet b = b \bullet a = e$, where $e$ is the identity element. We then call $b$ the \emph{inverse} of $a$, written $b = a^{-1}$, and vice versa ($a = b^{-1}$).
+\end{description}
+
+The number of elements in $E$ is called the \emph{order} of the group.
+A group is a very useful abstraction since it has many nice mathematical properties, especially if the number of elements in $E$ is a prime number (this is called a \emph{prime order group}).
+A non-abelian group has all of the above properties apart from commutativity, but all the groups we deal with in this document are abelian.
+
+There are many possible ways of constructing a group.
+For example, the set of (positive and negative) integers $\mathbb{Z}$ together with the addition operator $+$ forms a group with identity element $0$, where the inverse of element $a \in \mathbb{Z}$ is $-a$.
+This group is infinite, since there are an infinite number of integers $\mathbb{Z}$.
+
+To construct a finite group, we can use $\mathbb{Z}_p$, the set of integers modulo $p$, and the group operator is addition $+$ followed by reduction modulo $p$.
+This group has identity element $0$, and the inverse of $a \in \mathbb{Z}_p$ is $p-a$.
+This construction is called the \emph{additive group of integers modulo $p$}.
+
+Another finite group construction uses as elements the set of integers $\mathbb{Z}_p^* = \{1,\dots, p-1\}$ (i.e.\ $\mathbb{Z}_p \setminus \{0\}$), where $p$ is a prime number, and the group operator is multiplication $\cdot$ followed by reduction modulo $p$.
+This group is known as the \emph{multiplicative group of integers modulo $p$}, and it has identity element $1$.
+It is not obvious that every element $a \in \{1,\dots, p-1\}$ has an inverse (also called \emph{multiplicative inverse}), but this fact can be shown using Bézout's identity when $p$ is prime, and it is covered in many textbooks on number theory.
+In \autoref{sec:inverse} we will see an algorithm for computing the multiplicative inverse.
+
+Finally, in \autoref{sec:group-construction} we will use elliptic curves to construct another type of finite group.
+This group forms the foundation of most algorithms in elliptic curve cryptography.
+
+Many cryptographic algorithms and protocols use a group without specifying how that group should be implemented.
+This works because any two groups with the same prime order are \emph{isomorphic} to each other: informally speaking, they ``behave the same'', regardless of how they are implemented (although their security properties may differ).
+This makes the concept of a group one of the most common and useful abstractions in cryptography.
+
+\subsection{Diffie-Hellman Key Exchange}\label{sec:diffie-hellman}
+
+Curve25519 is designed for use in \emph{Diffie-Hellman key exchange}, which allows two parties (Alice and Bob) to establish a shared secret by communicating over an insecure channel.
+This shared secret can then be used as a key to encrypt and authenticate messages between the two parties.
+
+For a group element $g$ and a non-negative integer $k$ we define the repeated application of the group operator to $g$ as follows:
+\begin{equation}\label{eq:power}
+g^k = \underbrace{g \bullet g \bullet \cdots \bullet g}_\text{$k$ times}
+\end{equation}
+We show in \autoref{sec:ladder} how to compute $g^k$ efficiently in the Curve25519 group, even for large $k$.
+
+Let's say that Bob wants anybody to be able to send him encrypted messages, which we can do using Diffie-Hellman.
+Bob must first generate a keypair consisting of a private and public key, and make the public key available to anybody.
+To generate his keypair, Bob chooses a random integer $j$ as his private key, and computes $g^j$ for a well-known group element $g$.
+This group element $g$ is called the \emph{base point} or \emph{generator}, and we will see later how it is chosen.
+The group element $g^j$ is Bob's public key.
+
+When Alice wants to send an encrypted message to Bob, she obtains Bob's public key $g^j$ and chooses a random integer $k$.
+She computes $(g^j)^k$ and uses the result as a key for a symmetric cipher to encrypt her message to Bob.
+She also computes $g^k$ and sends this group element to Bob along with her message, while $k$ remains private.
+When Bob receives $g^k$ from Alice, he uses his private key $j$ to compute:
+\begin{equation*}
+(g^k)^j =
+\underbrace{(\underbrace{g \bullet\cdots\bullet g}_\text{$k$ times}) \bullet\cdots\bullet (\underbrace{g \bullet\cdots\bullet g}_\text{$k$ times})}_\text{$j$ times} =
+\underbrace{g \bullet\cdots\bullet g}_\text{$j \cdot k$ times} =
+\underbrace{(\underbrace{g \bullet\cdots\bullet g}_\text{$j$ times}) \bullet\cdots\bullet (\underbrace{g \bullet\cdots\bullet g}_\text{$j$ times})}_\text{$k$ times} =
+(g^j)^k
+\end{equation*}
+
+Due to the associativity of $\bullet$, the group element $(g^k)^j$ computed by Bob equals the value $(g^j)^k$ that Alice used to encrypt her message.
+Thus, Alice and Bob obtain the same shared secret, and Bob can decrypt Alice's message.
+An adversary knows $g$ and $g^j$ (since they are public) and may learn $g^k$ by eavesdropping as it is sent over the network.
+For the Diffie-Hellman key exchange to be secure, it must be computationally extremely difficult for the adversary to compute $g^{jk}$ given $g$, $g^j$, and $g^k$.
+
+\subsection{Security Properties of Groups}\label{sec:cdh-ddh}
+
+The Diffie-Hellman protocol is secure if the following assumptions are true (where $i$, $j$ and $k$ are chosen uniformly at random from $\mathbb{Z}_p$ for sufficiently large $p$):
+
+\begin{description}
+\item[Hardness of discrete logarithms:]
+    Given $g$ and $g^k$, it is not feasible for the adversary to compute $k$.
+\item[Computational Diffie-Hellman (CDH) assumption:]
+    Given $g$, $g^j$, and $g^k$, it is not feasible for the adversary to compute $g^{jk}$.
+\item[Decisional Diffie-Hellman (DDH) assumption:]
+    The adversary is given one of two tuples, either $(g, g^j, g^k, g^{jk})$ or $(g, g^j, g^k, g^i)$, chosen at random with equal probability.
+    Then the adversary must choose whether it was given the tuple containing $g^{jk}$ or the tuple containing the random group element $g^i$.
+    It is not feasible for the adversary to choose the correct answer with probability significantly greater than $\frac{1}{2}$ (a random guess).
+\end{description}
+
+The DDH assumption is stronger than CDH, and CDH is stronger than the hardness of discrete logarithms.
+This is the case because if the adversary can compute discrete logarithms, they can compute $j$ and/or $k$ from $g^j$ and $g^k$, and hence they can compute $g^{jk}$.
+Moreover, if the adversary can compute $g^{jk}$ then they can tell the difference between $g^{jk}$ and $g^i$.
+Thus, DDH implies CDH, and CDH implies hardness of discrete logarithms.
+However, the converse is not necessarily true: for example, it might be possible to compute $g^{jk}$ directly from $g^j$ and $g^k$, without first computing $j$ or $k$, although no such algorithm is currently known.
+
+How do the groups from \autoref{sec:groups} fare with respect to these security properties?
+\begin{itemize}
+\item In the additive group of integers modulo $p$, discrete logarithms are easy to compute, so this group is not secure.
+    Computing $g^k$ in this group means adding $g$ to itself $k$ times, which is the same as computing the product $g \cdot k$.
+    We can compute the multiplicative inverse of $g$ (\autoref{sec:inverse}) and then compute $g^{-1} \cdot g \cdot k = k$ in order to efficiently recover $k$.
+
+\item In $\mathbb{Z}_p^*$, the multiplicative group of integers modulo $p$, discrete logarithms are believed to be hard, but the DDH assumption does not hold.
+    A detailed explanation goes beyond the scope of this document, but it can be stated briefly: the adversary can use Euler's criterion to determine whether $g^k$ is a quadratic residue modulo $p$, which leaks the least significant bit of $k$ (i.e.\ whether $k$ is odd or even).
+    Moreover, $jk$ is even if and only if $j$ and/or $k$ is even.
+    Thus, if the adversary is given $(g, g^j, g^k, g^i)$, and if $i$ is odd while $j$ or $k$ is even (or if $i$ is even while $j$ and $k$ are both odd), then the adversary knows that the fourth element of the tuple must be a random group element, not $g^{jk}$.
+    This gives the adversary a significant advantage over random guessing, so the DDH assumption does not hold.
+
+    It is possible to work around this problem by constructing a prime-order subgroup of $\mathbb{Z}_p^*$; for example, the Digital Signature Algorithm (DSA) does this.
+    In this subgroup, the DDH assumption is believed to hold.
+    However, a problem that remains is that the numbers have to be quite large in order to be secure: if we want the difficulty of computing the discrete logarithm to be similar to the difficulty of breaking a 128-bit symmetric cipher, then $p$ needs to be over 3,000 bits long.
+
+\item In the elliptic curve (EC) group that we construct in \autoref{sec:group-construction}, the DDH assumption is believed to be true.
+    Moreover, computing discrete logarithms in EC groups is believed to be harder than in subgroups of $\mathbb{Z}_p^*$ for the same size of numbers, so EC groups can use 256-bit numbers to achieve the same 128-bit security level as 3,000-bit $\mathbb{Z}_p^*$ groups.
+    This means EC group elements take less space in the network packets, and EC algorithms are faster for a given security level.
+    This is the main benefit of using elliptic curves for cryptography.
+\end{itemize}
+
+In all of these cases, it is a conjecture, not a proven fact, that the DDH assumption holds for a group.
+The fact that we have not yet found an efficient attack against these cryptosystems does not guarantee that such an attack does not exist.
+However, it's the best we have for the time being.
+
+\subsection{Finite Fields}\label{sec:fields}
+
+Most of the computations behind elliptic curve cryptography take place in a \emph{finite field}.
+Building upon the definition of an abelian group in \autoref{sec:groups}, a field is a set of elements $F$ along with two operators (addition $a + b$ and multiplication $a \cdot b$), with the following properties:
+\begin{itemize}
+    \item The set $F$ and the addition operator $+$ form an abelian group with identity element $0$.
+        We denote the inverse of $a \in F$ in this group as $-a$.
+        The subtraction operator $a - b$ is then shorthand for $a + (-b)$.
+    \item The set $F \setminus \{0\}$ and the multiplication operator $\cdot$ form an abelian group with identity element $1$.
+        (0 is excluded because it has no multiplicative inverse, i.e.\ there is no $a \in F$ such that $0 \cdot a = 1$.)
+        We denote the inverse of $a \in F$ in this group as $a^{-1}$.
+        The division operator $a/b$ is then shorthand for $a \cdot (b^{-1})$.
+    \item The addition and multiplication operators satisfy the distributive law: $a \cdot (b + c) = (a \cdot b) + (a \cdot c)$.
+\end{itemize}
+The real numbers $\mathbb{R}$ along with the usual addition and multiplication operators form a field with an infinite set of elements, but we can also define a field where the set of elements $F$ is finite.
+This is called a \emph{finite field}, also known as \emph{Galois field}.
+
+Curve25519 uses the finite field of integers modulo $p = 2^{255}-19$.
+Like in \autoref{sec:groups}, this field has the elements $\mathbb{Z}_p = \{0, 1, \dots, p-1\}$, with the usual addition and multiplication operators on integers, followed by reduction modulo $p$.
+The additive inverse of $a$ modulo $p$ is $-a = p - a$, which always exists.
+We discuss multiplicative inverses in \autoref{sec:cyclic}.
+
+In a field we can perform algebraic manipulation of expressions, such as solving equations, in much the same way as when working with the real numbers $\mathbb{R}$: addition, subtraction, multiplication and division all behave as expected.
+Exponentiation is defined as repeated multiplication, like in~\eqref{eq:power}.
+Note that in a finite field of integers, division modulo $p$ is shorthand for multiplying by the multiplicative inverse: $\frac{a}{b} = a \cdot (b^{-1})$.
+Thus, the result of division is still an integer modulo $p$ (a field element), not a fraction.
+
+\subsection{Cyclic Groups and Multiplicative Inverses}\label{sec:cyclic}
+
+Let $a \in E$ be an element of a finite group $E$ with operator $\bullet$ and identity element $e$.
+Consider the set of powers of $a$, that is, $\{a^0, a^1, \dots\}$, where $a^0 = e$ and $a^k = a \bullet a \bullet \dots \bullet a$ means applying $a$ to itself $k$ times.
+By the closure property, the result of $\bullet$ is always a group member, so the set of powers must be a subset of the group elements $E$.
+When the group is finite, the set of powers must also be finite.
+
+The set of powers of $a \in E$ is called the \emph{subgroup} of $E$ that is \emph{generated} by $a$.
+The \emph{order} of group element $a$ is defined to be the number of elements in the subgroup generated by $a$ (similarly to the order of the group, which is the number of elements in the group).
+
+In particular, one possibility is that $\{a^0, a^1, \dots\} = E$: that is, $a$ generates the whole group $E$, and so the order of $a$ is the same as the order of the group.
+If such a group element $a$ exists, the group is called \emph{cyclic}, and $a$ is called a \emph{generator} of the group.
+It is called ``cyclic'' because if you examine the sequence of group elements $a^0$, $a^1$, $a^2$, etc.\ then eventually that sequence must repeat (since the group is finite); in a cyclic group, that repetition cycle contains all of the group elements, so $a^0 = a^{|E|}$, $a^1 = a^{|E|+1}$, $a^2 = a^{|E|+2}$ etc. where $|E|$ is the number of elements in $E$.
+
+It can be shown that if the order of a group $|E|$ is a prime number, then that group is always cyclic.
+A nice property of a cyclic group is that the generator gives us a one-to-one mapping between the integers modulo $|E|$ and the group elements $E$.
+Thus, if we choose an integer $k \in [0,\, |E|-1]$ uniformly at random and compute $a^k$, the result is a group element chosen uniformly at random~-- i.e.\ every group element is equally likely to be picked with probability $\frac{1}{|E|}$.
+This fact is used in various cryptographic protocols.
+
+Another property of a cyclic group with generator $a$ and identity element $e$ is that $e = a^0 = a^{|E|} = a \bullet a^{|E|-1}$, which means that $a^{|E|-1}$ must be the inverse element of $a$.
+
+A similar rule applies to $\mathbb{Z}_p^*$, the multiplicative group of integers modulo $p$.
+If $p$ is a prime, this group has order $p-1$ since 0 is not an element of the group.
+For any $a \in \{1, \dots, p-1\}$, the multiplicative inverse of $a$ modulo $p$ is $a^{-1} = a^{p-2}$ (like before, the exponent is the group order minus 1).
+This follows from Fermat's little theorem,\footnote{Not to be confused with Fermat's last theorem~-- same Fermat, different theorem.} which states that $a^p \equiv a \pmod{p}$ when $p$ is prime; when $a \not\equiv 0 \pmod{p}$ we can divide both sides by $a$, yielding $a^{p-1} = a \cdot a^{p-2} \equiv 1 \pmod{p}$, so $a^{p-2}$ is the multiplicative inverse of $a$.
+We will use this fact in \autoref{sec:inverse} to compute inverses.
+
+
+\section{Finite Field Arithmetic}\label{sec:field-arithmetic}
+
+Before we can implement elliptic curve operations, we first have to implement arithmetic operators (addition, subtraction, multiplication, and division) for the underlying finite field.
+In the case of Curve25519 this is the field of integers modulo the prime $p = 2^{255} - 19$, as defined in \autoref{sec:fields}.
+
+Most programming languages do not have built-in support for such large numbers; moreover, a general-purpose implementation of big numbers might not be suitable for cryptographic purposes, because the running time and memory access patterns of an operation may depend on the values of its inputs.
+Such variations in timing and memory access can be exploited by \emph{side-channel attacks} to potentially leak secrets to an adversary.
+
+The TweetNaCl library analysed in this document includes its own implementation of field arithmetic, which takes care to use \emph{constant-time} algorithms whose running time does not depend on the input values.
+The algorithms only rely on standard arithmetic and bit operators in C, mostly using 64-bit integers, which compile directly to CPU instructions.
+
+\subsection{Arithmetic operators in TweetNaCl}
+
+Since Curve25519 coordinates are integers modulo $2^{255}-19$, we can represent them as 255-bit numbers.
+TweetNaCl uses two different representations for these numbers: either as a 32-element array of 8-bit pieces (bytes), or as a 16-element array of 16-bit pieces.
+The 32-byte representation is used for input and output, while the representation using 16-bit pieces is used internally by the arithmetic operators.
+
+In the TweetNaCl code, the \verb|gf| datatype (short for Galois field?) is used for the latter representation.
+Even though each piece is just 16 bits, it is declared as a 16-element array of 64-bit signed integers, for reasons that will become clear shortly.
+\autoref{code:unpack25519} shows the \verb|unpack25519| function, which converts a number from the byte array representation to the \verb|gf| representation.
+In the last line, it forces the most significant bit (the 256th bit) to be zero; this makes sense because our numbers are always less than $2^{255}$.
+
+\begin{listing}
+\begin{minted}{c}
+#define FOR(i,n) for (i = 0;i < n;++i)
+#define sv static void
+typedef unsigned char u8;
+typedef i64 gf[16];
+
+sv unpack25519(gf o, const u8 *n)
+{
+  int i;
+  FOR(i,16) o[i]=n[2*i]+((i64)n[2*i+1]<<8);
+  o[15]&=0x7fff;
+}
+\end{minted}
+\caption{Converting an integer modulo $p$ from the byte array representation to the array of 16-bit pieces.}\label{code:unpack25519}
+\end{listing}
+
+\begin{listing}
+\begin{minted}{c}
+sv sel25519(gf p,gf q,int b)
+{
+  i64 t,i,c=~(b-1);
+  FOR(i,16) {
+    t= c&(p[i]^q[i]);
+    p[i]^=t;
+    q[i]^=t;
+  }
+}
+\end{minted}
+\caption{Conditionally swapping the values in two variables.}\label{code:sel25519}
+\end{listing}
+
+\autoref{code:sel25519} shows the definition of the \verb|sel25519(p,q,b)| function, which swaps the content of \verb|p| and \verb|q| if the bit \verb|b| is 1, and does nothing if \verb|b| is 0, as discussed in \autoref{sec:ladder-optimised}.
+This function also operates on the \verb|gf| representation of integers.
+It first sets \verb|c=~(b-1)|, which equals 0 if \verb|b == 0|, and \verb|0xffff...| if \verb|b == 1|.
+Next it iterates over each of the 16 pieces of the number, and computes \verb|t = c&(p[i]^q[i])| for index \verb|i|, which equals 0 if \verb|b == 0|, and \verb|p[i]^q[i]| if \verb|b == 1|.
+The operation \verb|p[i] ^= t| thus has no effect if \verb|b == 0|, and sets \verb|p[i] = p[i] ^ (p[i] ^ q[i]) = q[i]| if \verb|b == 1|.
+Likewise, \verb|q[i]| is set to \verb|p[i]| if \verb|b == 1|.
+This function performs exactly the same operations regardless of the value of \verb|b|, so it is constant-time.
+
+\subsection{Computing Multiplicative Inverses}\label{sec:inverse}
 
 \section{Elliptic Curve Arithmetic}\label{sec:curve-arithmetic}
 
@@ -121,9 +402,9 @@ We say that a point $P = (x_P, y_P)$ lies on the curve if $(x_P, y_P)$ is a solu
 Notice that the curve has reflection symmetry around the $x$ axis; more formally, if $(x_P, y_P)$ is on the curve then $(x_P, -y_P)$ is also on the curve.
 This is the case because the variable $y$ appears only in the $y^2$ term in~\eqref{eq:curve}.
 
-For now we will treat $x$ and $y$ as real numbers.
-In cryptography, $x$ and $y$ are in fact integers modulo a large prime, but we will do the following derivation using real numbers as it is easier to visualise.
-It turns out that the end result works with both types of numbers.
+For now we will treat the coordinates $x$ and $y$ as real numbers.
+In Curve25519 they are actually integers modulo $2^{255} - 19$, but we will do the following derivation using real numbers as it is easier to visualise, and allows us to use some calculus.
+It turns out that the end result works with any field.
 
 If we have two points $P=(x_P,y_P)$ and $Q=(x_Q,y_Q)$ that both lie on the curve, we can draw a straight line through those points.
 If we assume that $x_P \neq x_Q$, then that straight line intersects the curve at some third point $R$, as shown in \autoref{fig:curve}(a).
@@ -204,27 +485,16 @@ Since $(x_R, y_R)$ is defined whenever $\lambda$ exists, we know that the third 
 
 \subsection{Constructing a group}\label{sec:group-construction}
 
-An \emph{abelian group} is a set $E$ together with an operation $\bullet$.
-The operation combines two elements of the set, denoted $a \bullet b$ for $a, b \in E$.
-Moreover, the operation must satisfy the following requirements:
-\begin{description}
-\item[Closure:] For all $a, b \in E$, the result of the operation $a \bullet b$ is also in $E$.
-\item[Commutativity:] For all $a, b \in E$ we have $a \bullet b = b \bullet a$.
-\item[Associativity:] For all $a, b, c \in E$ we have $(a \bullet b) \bullet c = a \bullet (b \bullet c)$.
-\item[Identity element:] There exists an element $e \in E$, called the \emph{identity element} or \emph{neutral element}, such that for all $a \in E$ we have $e \bullet a = a \bullet e = a$.
-\item[Inverse element:] For every $a \in E$ there exists an element $b \in E$ such that $a \bullet b = b \bullet a = e$, where $e$ is the identity element. We then call $b$ the \emph{inverse} of $a$, written $b = a^{-1}$, and vice versa ($a = b^{-1}$).
-\end{description}
-
-A group is a very useful abstraction since it has many nice mathematical properties, especially if the number of elements in $E$ is a prime number (this is called a \emph{prime order group}).
-Many cryptographic algorithms and protocols use a group without specifying how that group should be implemented.
-This works because any two groups with the same prime order are \emph{isomorphic} to each other: informally speaking, they ``behave the same'', regardless of how they are implemented (although their security properties may differ).
-The group we are about to define has an infinite number of elements when the $x$ and $y$ coordinates are real numbers, but we will see later how to make it finite.
-
 We will now use the results from the last section to construct a group.
 The set of elements is the set of points on the elliptic curve~\eqref{eq:curve}, plus one special element $\infty$ that we call the \emph{point at infinity}:
 \begin{equation}
 E = \{(x,y) \mid y^2 = x^3 + A x^2 + x\} \;\cup\; \{\infty\}
 \end{equation}
+The group has an infinite number of elements when the $x$ and $y$ coordinates are real numbers, but when they are integers modulo $p$, the group order is finite.
+For $x, y \in \mathbb{Z}_p$ there are $p^2$ possible $(x, y)$ pairs, and only some of them are solutions of the curve equation.
+The exact number of solutions depends on the curve equation, the parameter $A$, and the size of the underlying field.
+Algorithms for counting the number of curve points are presented in textbooks~\cite{Blake:1999,Cohen:2006}.
+
 The point at infinity has no coordinates, and its purpose is to deal with vertical lines.
 When two different points have the same $x$ coordinate and we draw a vertical line through them, like in \autoref{fig:vertical}, we define the point at infinity to be the third point at which the line ``intersects the curve''.
 We can imagine this point as lying infinitely far up the $y$ axis, and all vertical lines intersect that point.
@@ -271,7 +541,7 @@ The formulas~\eqref{eq:law-x} and~\eqref{eq:law-y}, along with definitions~\eqre
 These definitions may seem somewhat arbitrary, but $\bullet$ has to be defined this way in order to obtain a group.
 For example, if we did not invert the third intersection point of the line, the resulting operation would not form a group.
 
-To prove that our definitions do indeed form an abelian group, we need to show that the five aforementioned properties hold.
+To prove that our definitions do indeed form an abelian group, we need to show that the five properties of \autoref{sec:groups} hold.
 Most of these are easy:
 \begin{itemize}
 \item The closure property holds by definition, since the point $(x_3, y_3)$ defined by~\eqref{eq:law-x} and~\eqref{eq:law-y} lies on the curve, and the result of the group operation in~\eqref{eq:law-identity} and~\eqref{eq:law-inverse} is also an element of $E$.
@@ -322,13 +592,12 @@ In the literature on elliptic curves, the group operation $\bullet$ is tradition
 On the other hand, in the literature on cryptographic protocols, the group operation is traditionally written as multiplication $\cdot$, the inverse of $P$ is written as $P^{-1}$, and combining a group element with itself is written as $P \cdot P = P^2$.
 In this document we use $\bullet$ as the group operation on \emph{group elements} $E$, in order to avoid confusion with the addition and multiplication of individual \emph{coordinates}, which is used in the formulas above.
 
-\subsection{Elliptic-curve Diffie-Hellman}\label{sec:diffie-hellman}
+\subsection{Elliptic-curve Diffie-Hellman}\label{sec:ecdh}
 
 Now that we have constructed a group, we can use this group for cryptographic protocols.
-In particular, Curve25519 is designed for use in \emph{Diffie-Hellman key exchange}, which allows two parties (Alice and Bob) to establish a shared secret by communicating over an insecure channel.
-This shared secret can then be used as a key to encrypt and authenticate messages between the two parties.
+In particular, Curve25519 is designed for use in Diffie-Hellman key exchange as explained in \autoref{sec:diffie-hellman}.
 
-For a group element $P$ and a non-negative integer $k$ we define the repeated application of the group operator to $P$ as follows:
+For a group element $P \in E$ and a non-negative integer $k$ we define the repeated application of the group operator to $P$ as before:
 \begin{equation}
 P^k = \underbrace{P \bullet P \bullet \cdots \bullet P}_\text{$k$ times}
 \end{equation}
@@ -338,30 +607,12 @@ This operation is known as \emph{scalar multiplication} (where \emph{scalar} ref
 We can visualise the sequence $P$, $P^2$, $P^3$, {\dots} as repeatedly drawing a line through points $P$ and $P^i$, as shown in \autoref{fig:curve}, finding a third intersection point of this line, and mirroring it with respect to the $x$ axis to obtain point $P^{i+1}$.
 The effect, intuitively speaking, is a sequence of points that ``jump around'' the curve in a complicated pattern that is difficult to predict.
 This complicated pattern is what makes the group suitable for cryptography.
+In particular, it is believed that the Decisional Diffie-Hellman assumption (see \autoref{sec:cdh-ddh}) is true in this group.
 
-In particular, if you are given $P$ and $P^k$, it is difficult to determine $k$ (this is known as the \emph{elliptic curve discrete logarithm problem}).
-The best known solutions, such as Pollard's rho algorithm~\cite{Pollard:1978do}, boil down to essentially trying lots of values of $k$ until we find a result that matches what we are looking for.
+The best known algorithms for discrete logarithms in this group, such as Pollard's rho algorithm~\cite{Pollard:1978do}, boil down to essentially trying lots of values of $k$ until we find a result that matches the input $P^k$.
 This algorithm takes approximately $O(\sqrt{k})$ time to find $k$.
 Thus, if we choose $k$ to be $n$ bits long, the time taken is $O(2^{n/2})$.
-Curve25519 chooses $n=251$, making the difficulty of computing the discrete logarithm similar to the difficulty of breaking a 128-bit symmetric cipher.
-
-Let's say that Bob wants anybody to be able to send him encrypted messages, which we can do using Diffie-Hellman.
-Bob must first generate a keypair consisting of a private and public key, and make the public key available to anybody.
-To generate his keypair, Bob chooses a random integer $j$ as his private key, and computes $P^j$ for a well-known group element $P$.
-This point $P$ is called the \emph{base point} or \emph{generator}, and we will see later how it is chosen.
-The group element $P^j$ is Bob's public key.
-
-When Alice wants to send an encrypted message to Bob, she obtains Bob's public key $P^j$ and chooses a random integer $k$.
-She computes $(P^j)^k$ and uses the result as a key for a symmetric cipher to encrypt her message to Bob.
-She also computes $P^k$ and sends this group element to Bob along with her message, while $k$ remains private.
-When Bob receives $P^k$ from Alice, he uses his private key $j$ to compute:
-\begin{equation*}
-(P^k)^j =
-\underbrace{(\underbrace{P \bullet\cdots\bullet P}_\text{$k$ times}) \bullet\cdots\bullet (\underbrace{P \bullet\cdots\bullet P}_\text{$k$ times})}_\text{$j$ times} =
-\underbrace{P \bullet\cdots\bullet P}_\text{$j \cdot k$ times} =
-\underbrace{(\underbrace{P \bullet\cdots\bullet P}_\text{$j$ times}) \bullet\cdots\bullet (\underbrace{P \bullet\cdots\bullet P}_\text{$j$ times})}_\text{$k$ times} =
-(P^j)^k
-\end{equation*}
+Curve25519 chooses $n=251$ (less than 255 because four bits are set to constant values), making the difficulty of computing the discrete logarithm similar to the difficulty of breaking a 128-bit symmetric cipher.
 
 \begin{listing}
 \begin{minted}[linenos]{c}
@@ -393,10 +644,6 @@ int crypto_box_beforenm(u8 *k,const u8 *y,const u8 *x)
 \caption{Using the \texttt{crypto{\PYGZus}scalarmult} function to implement Diffie-Hellman in TweetNaCl}\label{code:diffie-hellman}
 \end{listing}
 
-Due to the associativity of $\bullet$, the group element $(P^k)^j$ computed by Bob equals the value $(P^j)^k$ that Alice used to encrypt her message.
-Thus, Alice and Bob obtain the same shared secret, and Bob can decrypt Alice's message.
-An adversary knows $P$ and $P^j$ (since they are public) and may learn $P^k$ by eavesdropping as it is sent over the network, but will not be able to compute $P^{jk}$ from $P$, $P^j$ and $P^k$ due to the hardness of the discrete logarithm problem.
-
 \autoref{code:diffie-hellman} shows how Diffie-Hellman is implemented in TweetNaCl.
 The \verb|crypto_scalarmult(q,n,p)| function takes three arguments: \verb|p| is the input group element $P$, \verb|n| is the scalar exponent, and \verb|q| is a pointer to memory where the output $Q=P^n$ will be written.
 \verb|p|, \verb|n| and \verb|q| are all 256-bit numbers, encoded as arrays of 32 bytes.
@@ -411,8 +658,8 @@ The function generates the private key by simply drawing 32 bytes (256 bits) fro
 It then performs scalar multiplication of \verb|x| with the fixed base point in \verb|crypto_scalarmult_base|; the result is the public key.
 
 \verb|crypto_box_beforenm(k,y,x)| is called by both the sender and the recipient of a message.
-If called by the sender, \verb|y| is the recipient's public key and \verb|x| is the random integer generated by the sender (Alice's $k$ in the example above).
-If called by the recipient, \verb|y| is the group element sent along with the message ($P^k$ in the example above) and \verb|x| is the recipient's private key.
+If called by the sender, \verb|y| is the recipient's public key and \verb|x| is the random integer generated by the sender (Alice's $k$ in the example in \autoref{sec:diffie-hellman}).
+If called by the recipient, \verb|y| is the group element sent along with the message ($g^k$ in the example of \autoref{sec:diffie-hellman}) and \verb|x| is the recipient's private key.
 In either case, computing the scalar product of the group element and the secret integer produces the shared secret, which is written to \verb|s|.
 The function then initialises the HSalsa20 stream cipher~\cite{Bernstein:2014ca} using this shared secret, and writes the cipher state to \verb|k|.
 Subsequent function calls use \verb|k| to encrypt or decrypt the actual message.
@@ -549,10 +796,7 @@ They take as input one bit of the scalar, the output from the previous step $(X_
 If the current bit is zero, they produce $(X_{2i}, Z_{2i}, X_{2i+1}, Z_{2i+1})$ as output, as shown in~\eqref{eq:ladder}.
 If the current bit is one, they produce $(X_{2i+1}, Z_{2i+1}, X_{2i+2}, Z_{2i+2})$ as output, where $X_{2i+2}$ and $Z_{2i+2}$ are computed by applying the doubling formulas to $(X_{i+1}, Z_{i+1})$ instead of $(X_i, Z_i)$.
 
-One desirable property of these formulas is that each step of the ladder performs exactly the same arithmetic operations, regardless of whether the current bit of the scalar is zero or one.
-This is important because in Diffie-Hellman's use of scalar multiplication, the scalar is a private key.
-We must ensure that the execution time of the algorithm does not depend on the value of the scalar, since such variability in timing could leak the private key through side-channel attacks.
-We will see later how exactly this constant-time property is achieved in TweetNaCl.
+One desirable property of these formulas is that each step of the ladder performs exactly the same arithmetic operations, regardless of the input coordinates and the bits of the scalar, making the algorithm constant-time.
 
 \subsection{Handling the point at infinity}
 
@@ -624,7 +868,7 @@ The formulas~\eqref{eq:ladder-step} are nice and simple, but if we compare them 
 The reason is that the code is based on formulas that have been further optimised.
 
 We have already avoided using division in the Montgomery ladder step by moving to projective coordinates.
-To further improve the performance, we will aim to reduce the number of multiplications as far as possible, since they are generally the most expensive operations after division.
+To further improve the performance, we will aim to reduce the number of finite field multiplications as far as possible, since they are generally the most expensive operations after division.
 We ignore additions and subtractions since they are cheap by comparison.
 
 If we break down the formulas~\eqref{eq:ladder-step} into one multiplication per equation, reusing common sub-expressions where possible, we see that each step of the ladder requires 14 multiplications:
@@ -700,7 +944,7 @@ int crypto_scalarmult(u8 *q,const u8 *n,const u8 *p)
 
 In contrast to the above 14 multiplications, TweetNaCl uses only 10 multiplications per step.
 In this section we focus on how to derive the algorithm in \autoref{code:scalarmult} from the formulas~\eqref{eq:ladder-step}.
-The main ladder loop in lines~20 to~44 of \autoref{code:scalarmult} performs the following operations:
+The main ladder loop in lines~20 to~44 of \autoref{code:scalarmult} performs the following operations, as defined in \autoref{sec:field-arithmetic}:
 \begin{itemize}
     \item \verb|r=(z[i>>3]>>(i&7))&1| sets \verb|r| to be the \verb|i|th bit from the little-endian byte array \verb|z| (which was previously set to be a copy of the parameter \verb|n|, with a few tweaks explained later).
     \item \verb|sel25519(a,b,r)| examines the bit \verb|r|, which is either 0 or 1.
@@ -713,7 +957,6 @@ The main ladder loop in lines~20 to~44 of \autoref{code:scalarmult} performs the
     \item \verb|S(x,y)| squares the value in \verb|y|, and writes the result to \verb|x|.
         \verb|S(x,y)| is the same as \verb|M(x,y,y)|.
 \end{itemize}
-We will discuss the implementation of these functions in \autoref{sec:field-arithmetic}.
 
 Each iteration of the loop takes as input the values in variables \verb|a|, \verb|b|, \verb|c|, \verb|d|, \verb|x|, and \verb|z|, as well as the constant \verb|_121665 = {0xDB41,1}|, which contains the number \verb|0x1DB41| = 121665 (split into 16-bit chunks as explained in \autoref{sec:field-arithmetic}).
 As output it writes new values to the variables \verb|a|, \verb|b|, \verb|c|, and \verb|d|.
@@ -757,86 +1000,7 @@ Thus, each loop iteration maps input $(X_i, Z_i, X_{i+1}, Z_{i+1})$ to either ou
 This exactly matches the Montgomery ladder step~\eqref{eq:ladder}, except for the additional factor of 4 in $X_{2i+1}$ and $Z_{2i+1}$.
 However, since these two variables are just an expanded representation of the fraction $x_{2i+1} = X_{2i+1}/Z_{2i+1}$, these two factors of 4 cancel out and have no effect on the final result.
 
-%TODO \url{https://en.wikipedia.org/wiki/Montgomery_curve} has some detail on formulas for group arithmetic
-
-\section{Finite field arithmetic}\label{sec:field-arithmetic}
-
-Some parts of the derivation in \autoref{sec:curve-arithmetic}, such as the use of the derivative to compute the slope of the tangent to the curve at a particular point, assumed that the elliptic curve coordinates $(x, y)$ are real numbers.
-However, for cryptographic purposes it is much more useful if the coordinates are integers within a finite range (i.e.\ integers that can be represented in a fixed number of bits).
-
-Fortunately, the group law for Montgomery curves~\eqref{eq:law-x} and \eqref{eq:law-y}, and the subsequent derivation of the Montgomery ladder, are valid not just for real numbers, but for any \emph{field}.
-Building upon the definition of an abelian group in \autoref{sec:group-construction}, a field is a set of elements $F$ along with two operators (multiplication $a \cdot b$ and addition $a + b$), with the following properties:
-\begin{itemize}
-    \item The set $F$ and the addition operator $+$ form an abelian group with identity element $0$.
-        We denote the inverse of $a \in F$ in this group as $-a$.
-        The subtraction operator $a - b$ is then shorthand for $a + (-b)$.
-    \item The set $F \setminus \{0\}$ and the multiplication operator $\cdot$ form an abelian group with identity element $1$.
-        We denote the inverse of $a \in F$ in this group as $a^{-1}$.
-        The division operator $a/b$ is then shorthand for $a \cdot (b^{-1})$.
-    \item The addition and multiplication operators satisfy the distributive law: $a \cdot (b + c) = (a \cdot b) + (a \cdot c)$.
-\end{itemize}
-The real numbers $\mathbb{R}$ along with the usual addition and multiplication operators form a field with an infinite set of elements, but we can also define a field where the set of elements $F$ is finite.
-This is called a \emph{finite field}, also known as \emph{Galois field}.
-
-Curve25519 uses the finite field of integers modulo $p = 2^{255}-19$ (hence the name).
-This field consists of the set of integers $\mathbb{Z}_p = \{0, 1, \dots, p-1\}$, where addition and multiplication are performed modulo $p$: that is, any number $\ge p$ is \emph{reduced modulo $p$} by subtracting multiples of $p$ until the number is within the range $[0,\, p-1]$.
-If two numbers $a$ and $b$ reduce to the same integer modulo $p$, we say that they are \emph{congruent modulo $p$}, written $a \equiv b \pmod{p}$.
-More formally, we have $a \equiv b \pmod{p}$ if and only if there exists $k \in \mathbb{Z}$ such that $a - b = kp$.
-
-The additive inverse of $a$ modulo $p$ is $-a = p - a$, which always exists.
-Moreover, because $p$ is a prime number, every number $a \in \{1, \dots, p-1\}$ has a multiplicative inverse $a^{-1}$ modulo $p$: that is, for every $a \not\equiv 0$ there exists $b \in \{1, \dots, p-1\}$ such that $a \cdot b = 1$.
-Note that when we perform division modulo $p$, e.g.\ calculating $a/b = a \cdot (b^{-1})$, the result is still an integer modulo $p$, not a fraction.
-
-\subsection{Arithmetic operators in TweetNaCl}
-
-Since Curve25519 coordinates are integers modulo $2^{255}-19$, we can represent them as 255-bit numbers.
-TweetNaCl uses two different representations for these numbers: either as a 32-element array of 8-bit pieces (bytes), or as a 16-element array of 16-bit pieces.
-The 32-byte representation is used for input and output, while the representation using 16-bit pieces is used internally by the arithmetic operators.
-
-In the TweetNaCl code, the \verb|gf| datatype (short for Galois field?) is used for the latter representation.
-Even though each piece is just 16 bits, it is declared as a 16-element array of 64-bit signed integers, for reasons that will become clear shortly.
-\autoref{code:unpack25519} shows the \verb|unpack25519| function, which converts a number from the byte array representation to the \verb|gf| representation.
-In the last line, it forces the most significant bit (the 256th bit) to be zero; this makes sense because our numbers are always less than $2^{255}$.
-
-\begin{listing}
-\begin{minted}{c}
-#define FOR(i,n) for (i = 0;i < n;++i)
-#define sv static void
-typedef unsigned char u8;
-typedef i64 gf[16];
-
-sv unpack25519(gf o, const u8 *n)
-{
-  int i;
-  FOR(i,16) o[i]=n[2*i]+((i64)n[2*i+1]<<8);
-  o[15]&=0x7fff;
-}
-\end{minted}
-\caption{Converting an integer modulo $p$ from the byte array representation to the array of 16-bit pieces.}\label{code:unpack25519}
-\end{listing}
-
-\begin{listing}
-\begin{minted}{c}
-sv sel25519(gf p,gf q,int b)
-{
-  i64 t,i,c=~(b-1);
-  FOR(i,16) {
-    t= c&(p[i]^q[i]);
-    p[i]^=t;
-    q[i]^=t;
-  }
-}
-\end{minted}
-\caption{Conditionally swapping the values in two variables.}\label{code:sel25519}
-\end{listing}
-
-\autoref{code:sel25519} shows the definition of the \verb|sel25519(p,q,b)| function, which swaps the content of \verb|p| and \verb|q| if the bit \verb|b| is 1, and does nothing if \verb|b| is 0, as discussed in \autoref{sec:ladder-optimised}.
-This function also operates on the \verb|gf| representation of integers.
-It first sets \verb|c=~(b-1)|, which equals 0 if \verb|b == 0|, and \verb|0xffff...| if \verb|b == 1|.
-Next it iterates over each of the 16 pieces of the number, and computes \verb|t = c&(p[i]^q[i])| for index \verb|i|, which equals 0 if \verb|b == 0|, and \verb|p[i]^q[i]| if \verb|b == 1|.
-The operation \verb|p[i] ^= t| thus has no effect if \verb|b == 0|, and sets \verb|p[i] = p[i] ^ (p[i] ^ q[i]) = q[i]| if \verb|b == 1|.
-Likewise, \verb|q[i]| is set to \verb|p[i]| if \verb|b == 1|.
-This function performs exactly the same operations regardless of the value of \verb|b|, so it is constant-time.
+% TODO: explain why x=9 is chosen as generator/base point
 
 % Montgomery curves and their arithmetic https://eprint.iacr.org/2017/212.pdf
 
