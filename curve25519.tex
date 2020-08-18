@@ -216,7 +216,7 @@ How do the groups from \autoref{sec:groups} fare with respect to these security 
 \item In the elliptic curve (EC) group that we construct in \autoref{sec:group-construction}, the DDH assumption is believed to be true.
     Moreover, computing discrete logarithms in EC groups is believed to be harder than in subgroups of $\mathbb{Z}_p^*$ for the same size of numbers, so EC groups can use 256-bit numbers to achieve the same 128-bit security level as 3,000-bit $\mathbb{Z}_p^*$ groups.
     This means EC group elements take less space in the network packets, and EC algorithms are faster for a given security level.
-    This is the main benefit of using elliptic curves for cryptography.
+    This is the main benefit of using elliptic curves for cryptography instead of RSA or $\mathbb{Z}_p^*$ subgroups.
 \end{itemize}
 
 In all of these cases, it is a conjecture, not a proven fact, that the DDH assumption holds for a group.
@@ -271,6 +271,7 @@ Thus, if we choose an integer $k \in [0,\, |E|-1]$ uniformly at random and compu
 This fact is used in various cryptographic protocols.
 
 Another property of a cyclic group with generator $a$ and identity element $e$ is that $e = a^0 = a^{|E|} = a \bullet a^{|E|-1}$, so therefore $a^{|E|-1}$ must be the inverse element of $a$.
+In general, for any group element $a$ with order $k$ we have $a^k = e$.
 
 A similar rule applies to $\mathbb{Z}_p^*$, the multiplicative group of integers modulo $p$.
 If $p$ is a prime, this group has order $p-1$ since 0 is not an element of the group.
@@ -303,7 +304,7 @@ Based on how Bob decrypts the message, Alice can use brute force to detect which
 This is known as a \emph{small subgroup confinement attack}.
 
 One way of preventing this attack is to \emph{validate public keys}~\cite{Antipa:2003}: on receiving a public key $s$, the recipient first checks that $s$ is indeed an element of the group, and is not the identity element.
-Moreover, to verify that $s$ has order $q$ (assuming $q$ is prime), the recipient checks whether $s^q = e$ where $e$ is the identity element of the group.
+Moreover, to verify that $s$ has order $q$, the recipient checks whether $s^q = e$ where $e$ is the identity element of the group.
 Alternatively, the recipient could check that $s^h \ne e$ where $h$ is the cofactor, which works because $s^h = e$ whenever the order of $s$ is less than $q$.
 
 Curve25519 does not perform public key validation, and uses a different approach to prevent small subgroup confinement attacks: it ensures that the exponent is always a multiple of the cofactor $h=8$.
@@ -329,25 +330,28 @@ Most programming languages do not have built-in support for such large numbers; 
 Such variations in timing and memory access can be exploited by \emph{side-channel attacks} to potentially leak secrets to an adversary.
 
 The TweetNaCl library analysed in this document includes its own implementation of field arithmetic, which takes care to use \emph{constant-time} algorithms whose running time does not depend on the input values.
-The algorithms only rely on standard arithmetic and bit operators in C, mostly using 64-bit integers, which compile directly to CPU instructions.
+The algorithms only rely on standard arithmetic and bit operators in C, which compile directly to CPU instructions.
 
 \subsection{Arithmetic operators in TweetNaCl}
 
-Since Curve25519 coordinates are integers modulo $2^{255}-19$, we can represent them as 255-bit numbers.
-TweetNaCl uses two different representations for these numbers: either as a 32-element array of 8-bit pieces (bytes), or as a 16-element array of 16-bit pieces.
-The 32-byte representation is used for input and output, while the representation using 16-bit pieces is used internally by the arithmetic operators.
+TweetNaCl uses two different representations for integers modulo $p = 2^{255}-19$: either as a 32-element array of 8-bit values (bytes), or as a 16-element array of 16-bit values.
+The 32-byte representation is used for input and output, while the representation using 16-bit elements is used internally by the arithmetic operators.
 In both cases, a little-endian order is used, i.e.\ the first element of an array contains the least significant bits, and the last element contains the most significant bits.
 
-In the TweetNaCl code, the \verb|gf| datatype (short for Galois field?) is used for the latter representation.
-Even though each piece is just 16 bits, it is declared as a 16-element array of 64-bit signed integers, for reasons that will become clear shortly.
-\autoref{code:unpack25519} shows the \verb|unpack25519| function, which converts a number from the byte array representation to the \verb|gf| representation.
-In the last line, it forces the most significant bit (the 256th bit) to be zero; this makes sense because our numbers are always less than $2^{255}$.
+\autoref{code:arithmetic} shows the TweetNaCl implementation of the finite field arithmetic modulo $p$: addition, subtraction, and multiplication.
+In this code, the \verb|gf| datatype (short for \emph{Galois field}?), defined on line~5, is used for the number representation that uses 16 elements.
+Even though each element initially holds just 16 bits, it is declared as a 16-element array of 64-bit signed integers in order to simplify the following computations.
+
+We can think of a 16-element array $(a_0, a_1, \dots, a_{15})$ as representing a number $a$ by multiplying each element with the appropriate power of 2:
+\[ a = a_0 2^0 + a_1 2^{16} + a_2 2^{32} + \dots + a_{15} 2^{240} \]
+This expression is still well-defined even if individual elements $a_i$ lie outside of the range $[0,\, 2^{16}-1]$.
 
 \begin{listing}
-\begin{minted}{c}
+\begin{minted}[linenos]{c}
 #define FOR(i,n) for (i = 0;i < n;++i)
 #define sv static void
 typedef unsigned char u8;
+typedef long long i64;
 typedef i64 gf[16];
 
 sv unpack25519(gf o, const u8 *n)
@@ -356,12 +360,119 @@ sv unpack25519(gf o, const u8 *n)
   FOR(i,16) o[i]=n[2*i]+((i64)n[2*i+1]<<8);
   o[15]&=0x7fff;
 }
+
+sv car25519(gf o)
+{
+  int i;
+  i64 c;
+  FOR(i,16) {
+    o[i]+=(1LL<<16);
+    c=o[i]>>16;
+    o[(i+1)*(i<15)]+=c-1+37*(c-1)*(i==15);
+    o[i]-=c<<16;
+  }
+}
+
+sv A(gf o,const gf a,const gf b)
+{
+  int i;
+  FOR(i,16) o[i]=a[i]+b[i];
+}
+
+sv Z(gf o,const gf a,const gf b)
+{
+  int i;
+  FOR(i,16) o[i]=a[i]-b[i];
+}
+
+sv M(gf o,const gf a,const gf b)
+{
+  i64 i,j,t[31];
+  FOR(i,31) t[i]=0;
+  FOR(i,16) FOR(j,16) t[i+j]+=a[i]*b[j];
+  FOR(i,15) t[i]+=38*t[i+16];
+  FOR(i,16) o[i]=t[i];
+  car25519(o);
+  car25519(o);
+}
+
+sv S(gf o,const gf a)
+{
+  M(o,a,a);
+}
 \end{minted}
-\caption{Converting an integer modulo $p$ from the byte array representation to the array of 16-bit pieces.}\label{code:unpack25519}
+\caption{Field arithmetic modulo $p = 2^{255} - 19$: addition, subtraction, multiplication, and squaring.}\label{code:arithmetic}
 \end{listing}
 
+We start with the \verb|unpack25519| function on lines~7--12 of \autoref{code:arithmetic}, which converts a number from the byte array representation to the \verb|gf| representation.
+\verb|FOR(i,16)| is a convenience macro defined on line~1.
+The loop takes two adjacent bytes, \verb|n[2*i]| and \verb|n[2*i+1]|, and combines them into a 16-bit value by shifting the second byte left by 8~bits and then adding them.
+In the last line, it forces the most significant bit (the 256th bit) to be zero, since our numbers are always less than $2^{255}$.
+Strictly speaking, this function allows the value to be within the range $[2^{255} - 19,\, 2^{255} - 1]$, which are not reduced modulo $p$, but this not do any harm, since the functions that take the \verb|gf| type as input handle these numbers correctly.
+
+The \verb|A| function on lines~26--30 of \autoref{code:arithmetic} adds two numbers in \verb|gf| form, and similarly the \verb|Z| function on lines~32--36 subtracts two numbers.
+These functions are straightforward: they just add or subtract each of the 16 elements separately.
+\begin{align*}
+    a + b &= (a_0 2^0 + a_1 2^{16} + a_2 2^{32} + \dots + a_{15} 2^{240}) + (b_0 2^0 + b_1 2^{16} + b_2 2^{32} + \dots + b_{15} 2^{240}) \\
+    &= (a_0 + b_0)\, 2^0 + (a_1 + b_1)\, 2^{16} + (a_2 + b_2)\, 2^{32} + \dots + (a_{15} + b_{16})\, 2^{240} \\[6pt]
+    a - b &= (a_0 2^0 + a_1 2^{16} + a_2 2^{32} + \dots + a_{15} 2^{240}) - (b_0 2^0 + b_1 2^{16} + b_2 2^{32} + \dots + b_{15} 2^{240}) \\
+    &= (a_0 - b_0)\, 2^0 + (a_1 - b_1)\, 2^{16} + (a_2 - b_2)\, 2^{32} + \dots + (a_{15} - b_{16})\, 2^{240}
+\end{align*}
+
+Since the \verb|gf| type uses 64-bit signed integers for each of the 16 elements, these addition or subtraction operations don't overflow or underflow, and we don't have to worry about propagating carry bits.
+However, we have to keep in mind that each of the elements may now be greater than $2^{16}$, or negative.
+
+The \verb|M| function on lines~38--47 multiplies two numbers in \verb|gf| form.
+\verb|t| is a 32-element array of 64-bit integers, initialised to zero.
+On line~42 we perform \verb|FOR(i,16) FOR(j,16) t[i+j]+=a[i]*b[j]|: iterating in a nested loop over each of the elements of the input numbers \verb|a| and \verb|b|, and adding their product to the appropriate elements of \verb|t|.
+This is equivalent to how we do long multiplication with pen and paper:
+\begin{align*}
+    a \cdot b &= (a_0 2^0 + a_1 2^{16} + a_2 2^{32} + \dots + a_{15} 2^{240}) \cdot (b_0 2^0 + b_1 2^{16} + b_2 2^{32} + \dots + b_{15} 2^{240}) \\
+    &= a_0 b_0 2^{0+0} + a_1 b_0 2^{16+0} + \dots + a_{15} b_0 2^{240+0} + a_0 b_1 2^{0+16} + a_1 b_1 2^{16+16} + \dots + a_{15} b_{15} 2^{240+240} \\
+    &= a_0 b_0 2^0 + (a_1 b_0 + a_0 b_1)\, 2^{16} + (a_2 b_0 + a_1 b_1 + a_0 b_2)\, 2^{32} + \dots + a_{15} b_{15} 2^{480}
+\end{align*}
+The 32-element array \verb|t| now contains the product of \verb|a| and \verb|b| (the product of two 255-bit numbers is a 510-bit number).
+Only elements 0 to 30 are actually needed, because the last element is always zero.
+
+In order to avoid the numbers getting bigger and bigger, this is a good time to reduce modulo $p$, as explained in \autoref{sec:modular-arithmetic}.
+However, for performance reasons, TweetNaCl doesn't fully reduce modulo $p$ in the multiplication function \verb|M|.
+Instead, we reduce modulo $2p = 2\,(2^{255} - 19) = 2^{256} - 38$ on line~43 of \autoref{code:arithmetic}.
+This is valid because reducing modulo a multiple of $p$ preserves all of the necessary information; we can later reduce modulo $p$ and the end result will be the same as if we hadn't performed the intermediate reduction modulo $2p$.
+
+\verb|FOR(i,15) t[i]+=38*t[i+16]| \emph{almost} reduces modulo $2p$ because $2^{256} = 2p + 38$:
+\begin{align*}
+    t &= t_0 2^0 + t_1 2^{16} + t_2 2^{32} + \dots + t_{15} 2^{240} + t_{16} 2^{256} + t_{17} 2^{272} \dots + t_{30} 2^{480} \\
+    &= t_0 2^0 + t_1 2^{16} + t_2 2^{32} + \dots + t_{15} 2^{240} + t_{16} 2^0\, (2p + 38) + t_{17} 2^{16}\, (2p + 38) + \dots + t_{30} 2^{224}\, (2p + 38) \\
+    &\equiv t_0 2^0 + t_1 2^{16} + t_2 2^{32} + \dots + t_{15} 2^{240} + 38\, t_{16} 2^0 + 38\, t_{17} 2^{16} \dots + 38\, t_{30} 2^{224} \pmod{2p} \\
+    &= (t_0 + 38\, t_{16})\, 2^0 + (t_1 + 38\, t_{17})\, 2^{16} + \dots + (t_{14} + 38\, t_{30})\, 2^{224} + t_{15} 2^{240}
+\end{align*}
+The reduction is ``almost'' because, although the number now fits in the \verb|gf| type with 16 elements, each individual element is likely to fall outside of the $[0,\, 2^{16}-1]$ range, so the number as a whole is not fully reduced modulo $2p$.
+In order to normalise the values of these elements, the \verb|M| function first copies the product into the output variable \verb|o|, and then calls the \verb|car25519| function twice (lines~44--46).
+
+The \verb|car25519| function (lines~14--24 of \autoref{code:arithmetic}) cleans up a value of type \verb|gf|.
+
+\subsection{Computing Multiplicative Inverses}\label{sec:inverse}
+
 \begin{listing}
-\begin{minted}{c}
+\begin{minted}[linenos]{c}
+#define FOR(i,n) for (i = 0;i < n;++i)
+#define sv static void
+typedef unsigned char u8;
+typedef long long i64;
+typedef i64 gf[16];
+
+sv inv25519(gf o,const gf i)
+{
+  gf c;
+  int a;
+  FOR(a,16) c[a]=i[a];
+  for(a=253;a>=0;a--) {
+    S(c,c);
+    if(a!=2&&a!=4) M(c,c,i);
+  }
+  FOR(a,16) o[a]=c[a];
+}
+
 sv sel25519(gf p,gf q,int b)
 {
   i64 t,i,c=~(b-1);
@@ -371,19 +482,42 @@ sv sel25519(gf p,gf q,int b)
     q[i]^=t;
   }
 }
+
+sv pack25519(u8 *o,const gf n)
+{
+  int i,j,b;
+  gf m,t;
+  FOR(i,16) t[i]=n[i];
+  car25519(t);
+  car25519(t);
+  car25519(t);
+  FOR(j,2) {
+    m[0]=t[0]-0xffed;
+    for(i=1;i<15;i++) {
+      m[i]=t[i]-0xffff-((m[i-1]>>16)&1);
+      m[i-1]&=0xffff;
+    }
+    m[15]=t[15]-0x7fff-((m[14]>>16)&1);
+    b=(m[15]>>16)&1;
+    m[14]&=0xffff;
+    sel25519(t,m,1-b);
+  }
+  FOR(i,16) {
+    o[2*i]=t[i]&0xff;
+    o[2*i+1]=t[i]>>8;
+  }
+}
 \end{minted}
-\caption{Conditionally swapping the values in two variables.}\label{code:sel25519}
+\caption{Multiplicative inverse, and converting numbers from internal representation to byte arrays.}\label{code:pack25519}
 \end{listing}
 
-\autoref{code:sel25519} shows the definition of the \verb|sel25519(p,q,b)| function, which swaps the content of \verb|p| and \verb|q| if the bit \verb|b| is 1, and does nothing if \verb|b| is 0, as discussed in \autoref{sec:ladder-optimised}.
+\autoref{code:pack25519} shows the definition of the \verb|sel25519(p,q,b)| function, which swaps the content of \verb|p| and \verb|q| if the bit \verb|b| is 1, and does nothing if \verb|b| is 0, as discussed in \autoref{sec:ladder-optimised}.
 This function also operates on the \verb|gf| representation of integers.
 It first sets \verb|c=~(b-1)|, which equals 0 if \verb|b == 0|, and \verb|0xffff...| if \verb|b == 1|.
-Next it iterates over each of the 16 pieces of the number, and computes \verb|t = c&(p[i]^q[i])| for index \verb|i|, which equals 0 if \verb|b == 0|, and \verb|p[i]^q[i]| if \verb|b == 1|.
+Next it iterates over each of the 16 elements of the number, and computes \verb|t = c&(p[i]^q[i])| for index \verb|i|, which equals 0 if \verb|b == 0|, and \verb|p[i]^q[i]| if \verb|b == 1|.
 The operation \verb|p[i] ^= t| thus has no effect if \verb|b == 0|, and sets \verb|p[i] = p[i] ^ (p[i] ^ q[i]) = q[i]| if \verb|b == 1|.
 Likewise, \verb|q[i]| is set to \verb|p[i]| if \verb|b == 1|.
 This function performs exactly the same operations regardless of the value of \verb|b|, so it is constant-time.
-
-\subsection{Computing Multiplicative Inverses}\label{sec:inverse}
 
 \section{Elliptic Curve Arithmetic}\label{sec:curve-arithmetic}
 
@@ -842,7 +976,7 @@ If the current bit is one, they produce $(X_{2i+1}, Z_{2i+1}, X_{2i+2}, Z_{2i+2}
 
 One desirable property of these formulas is that each step of the ladder performs exactly the same arithmetic operations, regardless of the input coordinates and the bits of the scalar, making the algorithm constant-time.
 
-\subsection{Handling the point at infinity}
+\subsection{Handling the point at infinity}\label{sec:handling-infinity}
 
 In the derivation of the above formulas we have so far considered only points that are solutions to the curve equation, and ignored the point at infinity $\infty$.
 It is time that we now address this issue.
@@ -1069,6 +1203,15 @@ After clamping, \verb|z| is a number of the form $8k$, where $k \in [2^{251},\, 
 Thus, the distribution of group elements produced by Curve25519 is non-uniform: only about half of the group elements in the subgroup of order $q$ will be generated.
 However, this non-uniformity does not significantly weaken the security of Curve25519 for Diffie-Hellman purposes (apart from the loss of 1 bit of entropy).
 
+% https://moderncrypto.org/mail-archive/curves/2017/000860.html
+A final reason for clamping: if $k=0$ or $k$ is a multiple of $q$, then we would expect $P^k = \infty$ for a base point $P$ of order $q$.
+Although the Montgomery ladder correctly handles the point at infinity as an intermediate value, as shown in \autoref{sec:handling-infinity}, \verb|crypto_scalarmult| does not have the ability to return the point at infinity, since the function only returns an $x$ coordinate of a curve point.
+If there was no clamping and a scalar argument of $0$ or $q$ were passed in, \verb|crypto_scalarmult| would return zero, which the caller cannot distinguish from the curve point whose $x$ coordinate is zero.
+Returning an error instead of the point at infinity would make the function non-constant-time, if not done carefully.
+
+By forcing $k$ to be within $0 < k < q$, clamping avoids ever needing to return $\infty$ (except in the case where an adversary provides a group element with small order, as discussed in \autoref{sec:cofactor}, in which case it's fine to return zero).
+In the course of Diffie-Hellman with a base point of order $q$, $\infty$ will never be generated, since $jk$ can never be a multiple of $q$ in $(P^j)^k = P^{jk}$.
+
 \subsection{Finishing off scalar multiplication}
 
 \paragraph{Open questions.}
@@ -1086,6 +1229,8 @@ Only \verb|a| and \verb|c| actually get used (
   M(x+16,x+16,x+32);
   pack25519(q,x+16);
 \end{verbatim}
+
+% Twist security https://safecurves.cr.yp.to/twist.html
 
 % Montgomery curves and their arithmetic https://eprint.iacr.org/2017/212.pdf
 
