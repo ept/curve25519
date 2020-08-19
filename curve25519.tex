@@ -332,7 +332,7 @@ Such variations in timing and memory access can be exploited by \emph{side-chann
 The TweetNaCl library analysed in this document includes its own implementation of field arithmetic, which takes care to use \emph{constant-time} algorithms whose running time does not depend on the input values.
 The algorithms only rely on standard arithmetic and bit operators in C, which compile directly to CPU instructions.
 
-\subsection{Arithmetic operators in TweetNaCl}
+\subsection{Addition and Subtraction in TweetNaCl}
 
 TweetNaCl uses two different representations for integers modulo $p = 2^{255}-19$: either as a 32-element array of 8-bit values (bytes), or as a 16-element array of 16-bit values.
 The 32-byte representation is used for input and output, while the representation using 16-bit elements is used internally by the arithmetic operators.
@@ -422,34 +422,91 @@ These functions are straightforward: they just add or subtract each of the 16 el
 Since the \verb|gf| type uses 64-bit signed integers for each of the 16 elements, these addition or subtraction operations don't overflow or underflow, and we don't have to worry about propagating carry bits.
 However, we have to keep in mind that each of the elements may now be greater than $2^{16}$, or negative.
 
+\subsection{Multiplication Modulo $p$}
+
 The \verb|M| function on lines~38--47 multiplies two numbers in \verb|gf| form.
-\verb|t| is a 32-element array of 64-bit integers, initialised to zero.
+\verb|t| is a 31-element array of 64-bit integers, initialised to zero.
 On line~42 we perform \verb|FOR(i,16) FOR(j,16) t[i+j]+=a[i]*b[j]|: iterating in a nested loop over each of the elements of the input numbers \verb|a| and \verb|b|, and adding their product to the appropriate elements of \verb|t|.
 This is equivalent to how we do long multiplication with pen and paper:
-\begin{align*}
-    a \cdot b &= (a_0 2^0 + a_1 2^{16} + a_2 2^{32} + \dots + a_{15} 2^{240}) \cdot (b_0 2^0 + b_1 2^{16} + b_2 2^{32} + \dots + b_{15} 2^{240}) \\
-    &= a_0 b_0 2^{0+0} + a_1 b_0 2^{16+0} + \dots + a_{15} b_0 2^{240+0} + a_0 b_1 2^{0+16} + a_1 b_1 2^{16+16} + \dots + a_{15} b_{15} 2^{240+240} \\
-    &= a_0 b_0 2^0 + (a_1 b_0 + a_0 b_1)\, 2^{16} + (a_2 b_0 + a_1 b_1 + a_0 b_2)\, 2^{32} + \dots + a_{15} b_{15} 2^{480}
-\end{align*}
-The 32-element array \verb|t| now contains the product of \verb|a| and \verb|b| (the product of two 255-bit numbers is a 510-bit number).
-Only elements 0 to 30 are actually needed, because the last element is always zero.
+\begin{align}
+    t = a \cdot b &= (a_0 2^0 + a_1 2^{16} + a_2 2^{32} + \dots + a_{15} 2^{240}) \cdot (b_0 2^0 + b_1 2^{16} + b_2 2^{32} + \dots + b_{15} 2^{240}) \nonumber\\
+    &= a_0 b_0 2^{0+0} + a_1 b_0 2^{16+0} + \dots + a_{15} b_0 2^{240+0} + a_0 b_1 2^{0+16} + a_1 b_1 2^{16+16} + \dots + a_{15} b_{15} 2^{240+240} \nonumber\\
+    &= a_0 b_0 2^0 + (a_1 b_0 + a_0 b_1)\, 2^{16} + (a_2 b_0 + a_1 b_1 + a_0 b_2)\, 2^{32} + \dots + a_{15} b_{15} 2^{480} \label{eq:multiplication}
+\end{align}
+The 31-element array \verb|t| now contains the product of \verb|a| and \verb|b| (the product of two 255-bit numbers is a 510-bit number).
 
-In order to avoid the numbers getting bigger and bigger, this is a good time to reduce modulo $p$, as explained in \autoref{sec:modular-arithmetic}.
+In order to bring the 31-element array \verb|t| into a 16-element \verb|gf| form, we can reduce modulo $p$, as explained in \autoref{sec:modular-arithmetic}.
 However, for performance reasons, TweetNaCl doesn't fully reduce modulo $p$ in the multiplication function \verb|M|.
 Instead, we reduce modulo $2p = 2\,(2^{255} - 19) = 2^{256} - 38$ on line~43 of \autoref{code:arithmetic}.
 This is valid because reducing modulo a multiple of $p$ preserves all of the necessary information; we can later reduce modulo $p$ and the end result will be the same as if we hadn't performed the intermediate reduction modulo $2p$.
 
 \verb|FOR(i,15) t[i]+=38*t[i+16]| \emph{almost} reduces modulo $2p$ because $2^{256} = 2p + 38$:
-\begin{align*}
-    t &= t_0 2^0 + t_1 2^{16} + t_2 2^{32} + \dots + t_{15} 2^{240} + t_{16} 2^{256} + t_{17} 2^{272} \dots + t_{30} 2^{480} \\
-    &= t_0 2^0 + t_1 2^{16} + t_2 2^{32} + \dots + t_{15} 2^{240} + t_{16} 2^0\, (2p + 38) + t_{17} 2^{16}\, (2p + 38) + \dots + t_{30} 2^{224}\, (2p + 38) \\
-    &\equiv t_0 2^0 + t_1 2^{16} + t_2 2^{32} + \dots + t_{15} 2^{240} + 38\, t_{16} 2^0 + 38\, t_{17} 2^{16} \dots + 38\, t_{30} 2^{224} \pmod{2p} \\
-    &= (t_0 + 38\, t_{16})\, 2^0 + (t_1 + 38\, t_{17})\, 2^{16} + \dots + (t_{14} + 38\, t_{30})\, 2^{224} + t_{15} 2^{240}
-\end{align*}
-The reduction is ``almost'' because, although the number now fits in the \verb|gf| type with 16 elements, each individual element is likely to fall outside of the $[0,\, 2^{16}-1]$ range, so the number as a whole is not fully reduced modulo $2p$.
-In order to normalise the values of these elements, the \verb|M| function first copies the product into the output variable \verb|o|, and then calls the \verb|car25519| function twice (lines~44--46).
+\begin{align}
+    t &= t_0 2^0 + t_1 2^{16} + t_2 2^{32} + \dots + t_{15} 2^{240} + t_{16} 2^{256} + t_{17} 2^{272} \dots + t_{30} 2^{480} \nonumber\\
+    &= t_0 2^0 + t_1 2^{16} + t_2 2^{32} + \dots + t_{15} 2^{240} + t_{16} 2^0\, (2p + 38) + t_{17} 2^{16}\, (2p + 38) + \dots + t_{30} 2^{224}\, (2p + 38) \nonumber\\
+    &\equiv t_0 2^0 + t_1 2^{16} + t_2 2^{32} + \dots + t_{15} 2^{240} + 38\, t_{16} 2^0 + 38\, t_{17} 2^{16} \dots + 38\, t_{30} 2^{224} \pmod{2p} \nonumber\\
+    &= (t_0 + 38\, t_{16})\, 2^0 + (t_1 + 38\, t_{17})\, 2^{16} + \dots + (t_{14} + 38\, t_{30})\, 2^{224} + t_{15} 2^{240} \label{eq:reduce-2p}
+\end{align}
+After this step the result is in elements \verb|t[0]| to \verb|t[15]|, and we ignore \verb|t[16]| to \verb|t[30]|.
+This computation is ``almost'' a reduction modulo $2p$ because, although the number now fits in the \verb|gf| type with 16 elements, we have not yet done anything to bring each element within the $[0,\, 2^{16}-1]$ range, so the number as a whole is not fully reduced modulo $2p$.
 
-The \verb|car25519| function (lines~14--24 of \autoref{code:arithmetic}) cleans up a value of type \verb|gf|.
+Before we continue, let's check that the calculation we have done so far does not overflow the 64-bit variables we are using (signed integer overflow is undefined behaviour in C, so it is important to be sure that it cannot happen).
+When we come to use the addition, subtraction, and multiplication functions in \autoref{sec:ladder-optimised}, it will turn out that the result of a multiplication undergoes at most one addition or subtraction before becoming the input to another multiplication.
+Thus, if we assume that a multiplication returns a \verb|gf| number in which each element is in the range $[0,\, 2^{16}]$, then after one addition or subtraction, we can assume that each of the elements $a_i$, $b_i$ of the inputs to a multiplication is in the range $[-2^{16},\, 2^{17}]$.
+The greatest number of terms being added to one element in equation~\eqref{eq:multiplication} is for $t_{15}$:
+\[ t_{15} = a_{15} b_0 + a_{14} b_1 + a_{13} b_2 + \dots + a_1 b_{14} + a_0 b_{15} \]
+
+Each of the products $a_i b_j$ is in the range $[-2^{33},\, 2^{34}]$, so therefore the sum of 16 of these terms must be in the range $[-2^{37},\, 2^{38}]$.
+Reduction modulo $2p$ in equation~\eqref{eq:reduce-2p} may further multiply an element by a factor of 38; over-approximating 38 as $2^6$ gives us a final range of $[-2^{43},\, 2^{44}]$.
+Thus, we can conclude that 64-bit arithmetic gives us plenty of headroom to complete the calculation without overflowing.\footnote{Incidentally, the JavaScript port of TweetNaCl uses double-precision floating-point arithmetic, since JavaScript does not support 64-bit integer arithmetic.
+IEEE 754 double-precision floating point numbers use an exact representation for integers in the range $[-2^{53}+1,\, 2^{53}-1]$; as we can see from this analysis, that precision is also sufficient to perform this multiplication algorithm correctly.}
+
+Finally, in order to bring the elements back into the range $[0,\, 2^{16}-1]$, the \verb|M| function first copies \verb|t[0]| to \verb|t[15]| into the output variable \verb|o|, and then calls the \verb|car25519| function twice (lines~44--46).
+
+The \verb|car25519| function (lines~14--24 of \autoref{code:arithmetic}, \emph{car} presumably stands for ``carry'') cleans up a value of type \verb|gf| by \emph{almost} bringing all of the elements within the $[0,\, 2^{16}-1]$ range.
+I say ``almost'' because there are edge cases in which some elements exceed that range after one or two calls to \verb|car25519|.
+In order to be certain that all of the elements are within $[0,\, 2^{16}-1]$, the function needs to be called \emph{three} times.
+However, after two calls to \verb|car25519|, that range can only be exceeded by a small amount; for the purposes of the multiplication function, two calls are sufficient, since we just need to ensure the element values are small enough that they do not cause overflow when they become the input to subsequent multiplications.
+
+% Here's an example value that requires three calls to car25519(val) before all elements are within [0, 0xffff]:
+% gf val = {0x10, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xfffffffff};
+
+\verb|car25519| iterates over the 16 elements of the \verb|gf| number \verb|o|, performing the following for each:
+\begin{enumerate}
+\item Line~19 performs \verb|o[i]+=(1LL<<16);| which adds $2^{16}$ to \verb|o[i]|.
+    Later, line~21 compensates for this addition, so that it does not affect the end result.
+
+\item Line~20 computes \verb|c=o[i]>>16;| this is the \emph{carry}, that is, all of the bits more significant than the low-order 16 bits.
+
+\item Line~21, \verb|o[(i+1)*(i<15)]+=c-1+37*(c-1)*(i==15);| is an obfuscated way of writing:
+\begin{minted}{c}
+  if (i < 15) {
+    o[i + 1] += c - 1;
+  } else {
+    o[0] += 38 * (c - 1);
+  }
+\end{minted}
+It uses the fact that a comparison expression like \verb|i<15| evaluates to the integer 1 if true, and the integer 0 if false.
+In this case, using an \verb|if| statement would not violate the constant-time guarantees (since the variable \verb|i| is not dependent on any secret value), so this line of code is somewhat gratuitous cleverness.
+
+    The purpose of this line is to add the carry to the next element; 1 is subtracted from \verb|c| to compensate for the earlier addition of $2^{16}$ to \verb|o[i]|.
+    If we are at the last element (\verb|i == 15|), the carry is multiplied by 38 and added to the first element, performing reduction modulo $2p$ as previously in equation~\eqref{eq:reduce-2p}.
+
+\item Line~22 updates \verb|o[i]-=c<<16;| which subtracts the carry bits from \verb|o[i]|, leaving its value within the range $[0,\, 2^{16}-1]$.
+\end{enumerate}
+
+\paragraph{Open question.}
+Why does \verb|car25519| add $2^{16}$ to each element (and then subsequently subtract 1 from the carry)?
+This is not sufficient to make the value non-negative, since values could be as small as $-2^{43}$.
+\verb|o[i]>>16| rounds down (even for negative numbers), so \verb|o[i]-=c<<16| always leaves \verb|o[i]| non-negative, even without the prior addition of \verb|1LL<<16|.
+I think this code could be simplified without affecting its correctness.
+
+If it was not for the last element's carry wrapping around to \verb|o[0]|, the \verb|car25519| function would leave all elements within $[0,\, 2^{16}-1]$.
+However, this carry can cause \verb|o[0]| to be greater than $2^{16}$, or even negative.
+A second call to \verb|car25519| can fix this; however, if elements \verb|o[1]| to \verb|o[15]| are close to \verb|0xffff|, the carry bits from \verb|o[0]| can cause a cascade of carries on the second call, resulting in a further carry from \verb|o[15]| to \verb|o[0]|, causing \verb|o[0]| to exceed \verb|0xffff| \emph{again}.
+On a third call to \verb|car25519|, such a carry cascade is no longer possible, since the values of the middle elements are now zero, and so the third call finally brings all elements within the range $[0,\, 2^{16}-1]$.
+
+In any case, the number of times \verb|car25519| is called must be constant (not dependent on whether or not there is a carry), since otherwise the function would no longer be constant-time.
 
 \subsection{Computing Multiplicative Inverses}\label{sec:inverse}
 
@@ -1207,10 +1264,10 @@ However, this non-uniformity does not significantly weaken the security of Curve
 A final reason for clamping: if $k=0$ or $k$ is a multiple of $q$, then we would expect $P^k = \infty$ for a base point $P$ of order $q$.
 Although the Montgomery ladder correctly handles the point at infinity as an intermediate value, as shown in \autoref{sec:handling-infinity}, \verb|crypto_scalarmult| does not have the ability to return the point at infinity, since the function only returns an $x$ coordinate of a curve point.
 If there was no clamping and a scalar argument of $0$ or $q$ were passed in, \verb|crypto_scalarmult| would return zero, which the caller cannot distinguish from the curve point whose $x$ coordinate is zero.
-Returning an error instead of the point at infinity would make the function non-constant-time, if not done carefully.
+Returning an error in this case would make the function non-constant-time, if not done carefully.
 
 By forcing $k$ to be within $0 < k < q$, clamping avoids ever needing to return $\infty$ (except in the case where an adversary provides a group element with small order, as discussed in \autoref{sec:cofactor}, in which case it's fine to return zero).
-In the course of Diffie-Hellman with a base point of order $q$, $\infty$ will never be generated, since $jk$ can never be a multiple of $q$ in $(P^j)^k = P^{jk}$.
+In the course of Diffie-Hellman with a base point of prime order $q$, $\infty$ will never be generated, since $(P^j)^k = P^{jk} = \infty$ only if $jk$ is a multiple of $q$, which is only possible if $j$ or $k$ is a multiple of $q$.
 
 \subsection{Finishing off scalar multiplication}
 
