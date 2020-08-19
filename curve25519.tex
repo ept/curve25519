@@ -500,6 +500,7 @@ Why does \verb|car25519| add $2^{16}$ to each element (and then subsequently sub
 This is not sufficient to make the value non-negative, since values could be as small as $-2^{43}$.
 \verb|o[i]>>16| rounds down (even for negative numbers), so \verb|o[i]-=c<<16| always leaves \verb|o[i]| non-negative, even without the prior addition of \verb|1LL<<16|.
 I think this code could be simplified without affecting its correctness.
+\vspace{1pt}
 
 If it was not for the last element's carry wrapping around to \verb|o[0]|, the \verb|car25519| function would leave all elements within $[0,\, 2^{16}-1]$.
 However, this carry can cause \verb|o[0]| to be greater than $2^{16}$, or even negative.
@@ -1329,21 +1330,32 @@ In the course of Diffie-Hellman with a base point of prime order $q$, $\infty$ w
 
 \subsection{Finishing off scalar multiplication}
 
-\paragraph{Open questions.}
-Why does \verb|crypto_scalarmult| copy \verb|a|, \verb|b|, \verb|c| and \verb|d| into the array \verb|x| at various offsets?
-Only \verb|a| and \verb|c| actually get used (
+At the start of \verb|crypto_scalarmult|, the $x$ coordinate of the base point is passed in as parameter \verb|p|.
+On line~14 this byte array is translated into \verb|gf| representation and copied to \verb|x|.
+We then initialise $\verb|a|=1$, $\verb|b|=\verb|x|$, $\verb|c|=0$, and $\verb|d|=1$.
+This gives us the starting state of the Montgomery ladder as defined in equation~\eqref{eq:ladder}: $L(P, 0) = (\frac{a}{c}, \frac{b}{d}) = (\infty, P)$.
 
-\begin{verbatim}
-  FOR(i,16) {
-    x[i+16]=a[i];
-    x[i+32]=c[i];
-    x[i+48]=b[i];
-    x[i+64]=d[i];
-  }
-  inv25519(x+32,x+32);
-  M(x+16,x+16,x+32);
-  pack25519(q,x+16);
-\end{verbatim}
+After the Montgomery ladder is finished, \verb|a| and \verb|c| contain the numerator and denominator of the $x$ coordinate of curve point $P^n$.
+In order to return this value, we must first convert projective coordinates back into affine coordinates by dividing the two, as discussed in \autoref{sec:inverse}.
+We copy \verb|c| to offset 32 of the array \verb|x|, and then use the \verb|inv25519| function to write the multiplicative inverse of \verb|c| to the same location.
+We also copy \verb|a| to offset 16 of the array \verb|x|, and then use the \verb|M| function to multiply \verb|a| and the inverse of \verb|c|.
+
+\paragraph{Open question.}
+Why does \verb|crypto_scalarmult| copy \verb|a|, \verb|b|, \verb|c| and \verb|d| into the array \verb|x| at various offsets?
+Only \verb|a| and \verb|c| actually get used, and nothing ever reads the other offsets, so this seems quite unnecessary.
+\vspace{1pt}
+
+Finally, we use the \verb|pack25519| function, as described in \autoref{sec:pack}, to convert the \verb|gf| representation of the result back into an array of 32 bytes, and we write the result to the output variable \verb|q|.
+This value can now be used as a public key (if \verb|p| was the base point), or as shared secret to initialise a symmetric encryption scheme (if \verb|p| was a public key or the group element received from the other user), as shown in \autoref{sec:ecdh}.
+
+\section{Conclusions}
+
+This document has shown how to derive the Curve25519 implementation in TweetNaCl, line by line, from first principles.
+Starting by assuming only minimal mathematical background knowledge we have explored how modern, constant-time cryptography is implemented, and justified the correctness of this implementation.
+
+For future work it would be interesting to expand this discussion to other common algorithms in elliptic curve cryptography, such as the Ed25519 signature scheme, and other curves such as NIST curves and the secp256k1 curve used by Bitcoin.
+The Ristretto255 prime-order group~\cite{Ristretto255}, which eliminates the cofactor of Curve25519, would also be interesting to discuss.
+I believe that by carefully studying existing implementations of cryptographic algorithms, and by analysing in detail what makes them correct, we can gain a deeper understanding of cryptography in general and improve the quality of implementations of cryptographic protocols.
 
 % Twist security https://safecurves.cr.yp.to/twist.html
 
@@ -1354,6 +1366,7 @@ Only \verb|a| and \verb|c| actually get used (
 % Other things to look at: NIST P-256 curve; Ed25519; secp256k1 ECDSA (bitcoin); petlib https://petlib.readthedocs.io/en/latest/
 % Ristretto255 https://ietf.org/id/draft-irtf-cfrg-ristretto255-00.html
 
+\newpage
 \bibliographystyle{plainurl}
 \bibliography{references}
 
