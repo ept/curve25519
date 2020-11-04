@@ -282,6 +282,19 @@ sv car25519(gf o)
   }
 }
 
+/* This simplified version seems to work equally well:
+sv car25519(gf o)
+{
+  int i;
+  i64 c;
+  FOR(i,16) {
+    c=o[i]>>16;
+    o[(i+1)*(i<15)]+=c+37*c*(i==15);
+    o[i]-=c<<16;
+  }
+}
+*/
+
 sv sel25519(gf p,gf q,int b)
 {
   i64 t,i,c=~(b-1);
