@@ -24,19 +24,19 @@
   \PYG{p}{\PYGZcb{}}
 \PYG{p}{\PYGZcb{}}
 
-\PYG{n}{sv} \PYG{n+nf}{A}\PYG{p}{(}\PYG{n}{gf} \PYG{n}{o}\PYG{p}{,}\PYG{k}{const} \PYG{n}{gf} \PYG{n}{a}\PYG{p}{,}\PYG{k}{const} \PYG{n}{gf} \PYG{n}{b}\PYG{p}{)}
+\PYG{n}{sv} \PYG{n+nf}{A}\PYG{p}{(}\PYG{n}{gf} \PYG{n}{o}\PYG{p}{,}\PYG{k}{const} \PYG{n}{gf} \PYG{n}{a}\PYG{p}{,}\PYG{k}{const} \PYG{n}{gf} \PYG{n}{b}\PYG{p}{)} \PYG{c+cm}{/* add: o = a + b */}
 \PYG{p}{\PYGZob{}}
   \PYG{k+kt}{int} \PYG{n}{i}\PYG{p}{;}
   \PYG{n}{FOR}\PYG{p}{(}\PYG{n}{i}\PYG{p}{,}\PYG{l+m+mi}{16}\PYG{p}{)} \PYG{n}{o}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]}\PYG{o}{=}\PYG{n}{a}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]}\PYG{o}{+}\PYG{n}{b}\PYG{p}{[}\PYG{n}{i}\PYG{p}{];}
 \PYG{p}{\PYGZcb{}}
 
-\PYG{n}{sv} \PYG{n+nf}{Z}\PYG{p}{(}\PYG{n}{gf} \PYG{n}{o}\PYG{p}{,}\PYG{k}{const} \PYG{n}{gf} \PYG{n}{a}\PYG{p}{,}\PYG{k}{const} \PYG{n}{gf} \PYG{n}{b}\PYG{p}{)}
+\PYG{n}{sv} \PYG{n+nf}{Z}\PYG{p}{(}\PYG{n}{gf} \PYG{n}{o}\PYG{p}{,}\PYG{k}{const} \PYG{n}{gf} \PYG{n}{a}\PYG{p}{,}\PYG{k}{const} \PYG{n}{gf} \PYG{n}{b}\PYG{p}{)} \PYG{c+cm}{/* subtract: o = a \PYGZhy{} b */}
 \PYG{p}{\PYGZob{}}
   \PYG{k+kt}{int} \PYG{n}{i}\PYG{p}{;}
   \PYG{n}{FOR}\PYG{p}{(}\PYG{n}{i}\PYG{p}{,}\PYG{l+m+mi}{16}\PYG{p}{)} \PYG{n}{o}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]}\PYG{o}{=}\PYG{n}{a}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]}\PYG{o}{\PYGZhy{}}\PYG{n}{b}\PYG{p}{[}\PYG{n}{i}\PYG{p}{];}
 \PYG{p}{\PYGZcb{}}
 
-\PYG{n}{sv} \PYG{n+nf}{M}\PYG{p}{(}\PYG{n}{gf} \PYG{n}{o}\PYG{p}{,}\PYG{k}{const} \PYG{n}{gf} \PYG{n}{a}\PYG{p}{,}\PYG{k}{const} \PYG{n}{gf} \PYG{n}{b}\PYG{p}{)}
+\PYG{n}{sv} \PYG{n+nf}{M}\PYG{p}{(}\PYG{n}{gf} \PYG{n}{o}\PYG{p}{,}\PYG{k}{const} \PYG{n}{gf} \PYG{n}{a}\PYG{p}{,}\PYG{k}{const} \PYG{n}{gf} \PYG{n}{b}\PYG{p}{)} \PYG{c+cm}{/* multiply: o = a * b */}
 \PYG{p}{\PYGZob{}}
   \PYG{n}{i64} \PYG{n}{i}\PYG{p}{,}\PYG{n}{j}\PYG{p}{,}\PYG{n}{t}\PYG{p}{[}\PYG{l+m+mi}{31}\PYG{p}{];}
   \PYG{n}{FOR}\PYG{p}{(}\PYG{n}{i}\PYG{p}{,}\PYG{l+m+mi}{31}\PYG{p}{)} \PYG{n}{t}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]}\PYG{o}{=}\PYG{l+m+mi}{0}\PYG{p}{;}
@@ -47,7 +47,7 @@
   \PYG{n}{car25519}\PYG{p}{(}\PYG{n}{o}\PYG{p}{);}
 \PYG{p}{\PYGZcb{}}
 
-\PYG{n}{sv} \PYG{n+nf}{S}\PYG{p}{(}\PYG{n}{gf} \PYG{n}{o}\PYG{p}{,}\PYG{k}{const} \PYG{n}{gf} \PYG{n}{a}\PYG{p}{)}
+\PYG{n}{sv} \PYG{n+nf}{S}\PYG{p}{(}\PYG{n}{gf} \PYG{n}{o}\PYG{p}{,}\PYG{k}{const} \PYG{n}{gf} \PYG{n}{a}\PYG{p}{)} \PYG{c+cm}{/* square: o = a\PYGZca{}2 */}
 \PYG{p}{\PYGZob{}}
   \PYG{n}{M}\PYG{p}{(}\PYG{n}{o}\PYG{p}{,}\PYG{n}{a}\PYG{p}{,}\PYG{n}{a}\PYG{p}{);}
 \PYG{p}{\PYGZcb{}}
