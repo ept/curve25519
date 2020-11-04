@@ -794,6 +794,12 @@ For $x, y \in \mathbb{Z}_p$ there are $p^2$ possible $(x, y)$ pairs, and only so
 The exact number of solutions depends on the curve equation, the parameter $A$, and the size of the underlying field.
 Algorithms for counting the number of curve points are presented in textbooks~\cite{Blake:1999,Cohen:2006}.
 In the case of Curve25519 with $A = 486662$ we have $|E| = 8 \cdot (2^{252} + 27742317777372353535851937790883648493)$ as discussed in \autoref{sec:cofactor}.
+% TODO We can check this in SageMath as follows:
+% k = GF(2^255 - 19)
+% E = EllipticCurve([k(0), 486662, 0, 1, 0])
+% order = 2^252 + 27742317777372353535851937790883648493
+% order.is_prime() # returns True
+% E.cardinality() == 8*order # returns True
 
 The point at infinity has no coordinates, and its purpose is to deal with vertical lines.
 When two different points have the same $x$ coordinate and we draw a vertical line through them, like in \autoref{fig:vertical}, we define the point at infinity to be the third point at which the line ``intersects the curve''.
@@ -953,6 +959,13 @@ In fact, \verb|p| and \verb|q| are not full group elements, but only the $x$ coo
 \verb|crypto_scalarmult_base(q,n)| performs scalar multiplication using a fixed group element \verb|_9|, which is a curve point whose $x$ coordinate equals 9.
 This point is chosen because its order is a large prime, as explained in \autoref{sec:cofactor}.
 The result is again returned in \verb|q|.
+% TODO can check the order of the point in SageMath as follows:
+% k = GF(2^255 - 19)
+% E = EllipticCurve([k(0), 486662, 0, 1, 0])
+% order = 2^252 + 27742317777372353535851937790883648493
+% x = 9
+% base = [k(x), sqrt(k(x^3 + a2*x^2 + x))]
+% order*E(base) # returns (0 : 1 : 0)
 
 \verb|crypto_box_keypair(y,x)| generates a new keypair, where the private key is written to \verb|x| and the public key is written to \verb|y|.
 The function generates the private key by simply drawing 32 bytes (256 bits) from a secure source of uniform random numbers.
