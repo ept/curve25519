@@ -32,9 +32,9 @@
 \date{}
 \maketitle
 \begin{abstract}
-Many textbooks cover the concepts behind Elliptic Curve Cryptography, but few discuss the details of how you go from the equations to an actual working and secure implementation of the algorithms.
+Many textbooks cover the concepts behind Elliptic Curve Cryptography, but few discuss the details of how you go from the equations to a working, fast, and secure implementation of the algorithms.
 Textbooks also tend to leave out the tedious algebraic derivations, making it difficult to reproduce the results they present.
-On the other hand, the code of cryptographic libraries can be rather opaque to the untrained eye, and it is rarely accompanied by detailed documentation explaining how the code came about and why it is correct.
+On the other hand, while the code of many cryptographic libraries is available as open source, it can be rather opaque to the untrained eye, and it is rarely accompanied by detailed documentation explaining how the code came about and why it is correct.
 
 The goal of this document is to bridge this gap between the mathematics and implementation of elliptic curve cryptography.
 We do this by carefully studying one particular algorithm, the Curve25519 function for Diffie-Hellman key agreement, and its implementation in the TweetNaCl library.
@@ -86,7 +86,6 @@ This is similar to integer overflow in the C programming language, where e.g.\ o
 In general, we say that two integers $a, b \in \mathbb{Z}$ are \emph{congruent modulo $p$}, written $a \equiv b \pmod{p}$, if and only if there exists $k \in \mathbb{Z}$ such that $a - b = kp$.
 That is, we can convert between $a$ and $b$ by adding or subtracting $p$ repeatedly.
 When we bring a number within the range of $[0,\, p-1]$ by adding or subtracting multiples of $p$, we call that process \emph{reduction modulo $p$}.
-Reducing $a$ modulo $p$ is written as $[a]_p$.
 
 The $\equiv$ operator for congruence modulo $p$ behaves in many ways like an equals sign.
 For example, if $a \equiv b \pmod{p}$, then $a+c \equiv b+c \pmod{p}$, and $a \cdot c \equiv b \cdot c \pmod{p}$.
@@ -130,10 +129,10 @@ To construct a finite group, we can use $\mathbb{Z}_p$, the set of integers modu
 This group has identity element $0$, and the inverse of $a \in \mathbb{Z}_p$ is $p-a$.
 This construction is called the \emph{additive group of integers modulo $p$}.
 
-Another finite group construction uses as elements the set of integers $\mathbb{Z}_p^* = \{1,\dots, p-1\}$ (i.e.\ $\mathbb{Z}_p \setminus \{0\}$), where $p$ is a prime number, and the group operator is multiplication $\cdot$ followed by reduction modulo $p$.
+Another finite group construction uses as elements the set of integers $\mathbb{Z}_p^* = \{1,\dots, p-1\} = \mathbb{Z}_p \setminus \{0\}$, where $p$ is a prime number, and the group operator is multiplication $\cdot$ followed by reduction modulo $p$.
 This group is known as the \emph{multiplicative group of integers modulo $p$}, and it has identity element $1$.
 It is not obvious that every element $a \in \{1,\dots, p-1\}$ has an inverse (also called \emph{multiplicative inverse}), but this fact can be shown using Bézout's identity when $p$ is prime, and it is covered in many textbooks on number theory.
-In \autoref{sec:inverse} we will see an algorithm for computing the multiplicative inverse.
+In \autoref{sec:cyclic} we will see an algorithm for computing the multiplicative inverse.
 
 Finally, in \autoref{sec:group-construction} we will use elliptic curves to construct another type of finite group.
 This group forms the foundation of most algorithms in elliptic curve cryptography.
@@ -223,6 +222,9 @@ In all of these cases, it is a conjecture, not a proven fact, that the DDH assum
 The fact that we have not yet found an efficient attack against these cryptosystems does not guarantee that such an attack does not exist.
 However, it's the best we have for the time being.
 
+% https://cr.yp.to/highspeed/naclcrypto-20090310.pdf says (without citation):
+% "There are weak theorems along these lines, stating that (for typical elliptic curves) a reliable algorithm to solve the [computational] Diffie–Hellman problem can be converted into a discrete-logarithm algorithm costing about ten thousand times as much."
+
 \subsection{Finite Fields}\label{sec:fields}
 
 Most of the computations behind elliptic curve cryptography take place in a \emph{finite field}.
@@ -234,7 +236,7 @@ Building upon the definition of an abelian group in \autoref{sec:groups}, a fiel
     \item The set $F \setminus \{0\}$ and the multiplication operator $\cdot$ form an abelian group with identity element $1$.
         (0 is excluded because it has no multiplicative inverse, i.e.\ there is no $a \in F$ such that $0 \cdot a = 1$.)
         We denote the inverse of $a \in F$ in this group as $a^{-1}$.
-        The division operator $a/b$ is then shorthand for $a \cdot (b^{-1})$.
+        The division operator $\frac{a}{b}$ is then shorthand for $a \cdot (b^{-1})$.
     \item The addition and multiplication operators satisfy the distributive law: $a \cdot (b + c) = (a \cdot b) + (a \cdot c)$.
 \end{itemize}
 The real numbers $\mathbb{R}$ along with the usual addition and multiplication operators form a field with an infinite set of elements, but we can also define a field where the set of elements $F$ is finite.
@@ -1318,6 +1320,8 @@ The TweetNaCl implementation would be constant-time even without setting this bi
 After clamping, \verb|z| is a number of the form $8k$, where $k \in [2^{251},\, 2^{252}-1]$.
 Thus, the distribution of group elements produced by Curve25519 is non-uniform: only about half of the group elements in the subgroup of order $q$ will be generated.
 However, this non-uniformity does not significantly weaken the security of Curve25519 for Diffie-Hellman purposes (apart from the loss of 1 bit of entropy).
+% TODO: does this mean that the decision Diffie-Hellman problem is technically not hard for X25519?
+% https://cr.yp.to/highspeed/naclcrypto-20090310.pdf says: "the set of possibilities for k is an easy-to-recognise set"
 
 % https://moderncrypto.org/mail-archive/curves/2017/000860.html
 A final reason for clamping: if $k=0$ or $k$ is a multiple of $q$, then we would expect $P^k = \infty$ for a base point $P$ of order $q$.
@@ -1352,21 +1356,41 @@ This value can now be used as a public key (if \verb|p| was the base point), or 
 
 This document has shown how to derive the Curve25519 implementation in TweetNaCl, line by line, from first principles.
 Starting by assuming only minimal mathematical background knowledge we have explored how modern, constant-time cryptography is implemented, and justified the correctness of this implementation.
+Although we have only studied one particular implementation, other implementations such as libsodium share many principles with the code studied here; after reading this document, you will find it much easier to figure out what other implementations are doing.
 
 For future work it would be interesting to expand this discussion to other common algorithms in elliptic curve cryptography, such as the Ed25519 signature scheme, and other curves such as NIST curves and the secp256k1 curve used by Bitcoin.
 The Ristretto255 prime-order group~\cite{Ristretto255}, which eliminates the cofactor of Curve25519, would also be interesting to discuss.
 I believe that by carefully studying existing implementations of cryptographic algorithms, and by analysing in detail what makes them correct, we can gain a deeper understanding of cryptography in general and improve the quality of implementations of cryptographic protocols.
+
+% TODO: it would be better to frame this as X25519
 
 % Twist security https://safecurves.cr.yp.to/twist.html
 
 % Montgomery curves and their arithmetic https://eprint.iacr.org/2017/212.pdf
 
 % Discussion of clamping https://twitter.com/Sc00bzT/status/1270331532490747904
+% More on clamping https://www.jcraige.com/an-explainer-on-ed25519-clamping
+
+% Google's implementation of Curve25519
+% https://github.com/google/tink/blob/master/java_src/src/main/java/com/google/crypto/tink/subtle/Curve25519.java
+% https://github.com/google/tink/blob/master/java_src/src/main/java/com/google/crypto/tink/subtle/Field25519.java
+% uses the word "limbs" to refer to what I call "elements"
+% curve25519 paper calls them "coefficients", and 2^16 the "radix"
 
 % Other things to look at: NIST P-256 curve; Ed25519; secp256k1 ECDSA (bitcoin); petlib https://petlib.readthedocs.io/en/latest/
 % Ristretto255 https://ietf.org/id/draft-irtf-cfrg-ristretto255-00.html
+% Threshold signatures
+% PAKE, such as https://github.com/jedisct1/cpace or socialist millionaire protocol
+% Zero-knowledge proofs
+% Elligator
+% If this is going to be a textbook, add more examples and exercises
 
-\newpage
+% How not to do it: https://soatok.blog/2020/07/08/gnu-a-heuristic-for-bad-cryptography/
+
+\section*{Acknowledgements}
+
+Martin Kleppmann is supported by a Leverhulme Trust Early Career Fellowship and by the Isaac Newton Trust.
+
 \bibliographystyle{plainurl}
 \bibliography{references}
 
