@@ -27,7 +27,7 @@
 \def\subsectionautorefname{Section}%
 \def\subsubsectionautorefname{Section}%
 
-\title{Implementing Curve25519: Every Line Explained}
+\title{Implementing Curve25519/X25519: Every Line Explained}
 \author{Martin Kleppmann}
 \date{}
 \maketitle
@@ -37,10 +37,10 @@ Textbooks also tend to leave out the tedious algebraic derivations, making it di
 On the other hand, while the code of many cryptographic libraries is available as open source, it can be rather opaque to the untrained eye, and it is rarely accompanied by detailed documentation explaining how the code came about and why it is correct.
 
 The goal of this document is to bridge this gap between the mathematics and implementation of elliptic curve cryptography.
-We do this by carefully studying one particular algorithm, the Curve25519 function for Diffie-Hellman key agreement, and its implementation in the TweetNaCl library.
+We do this by carefully studying one particular algorithm, the X25519 function for Diffie-Hellman key agreement, and its implementation in the TweetNaCl library.
 This library is designed for code readability, but it nevertheless has strong security properties, such as using constant-time algorithms to prevent side-channel attacks.
 
-Starting from first principles, this document shows how to re-derive the TweetNaCl implementation of Curve25519, including all of the tedious algebra, fully explaining and justifying every line of code.
+Starting from first principles, this document shows how to re-derive the TweetNaCl implementation of X25519, including all of the tedious algebra, fully explaining and justifying every line of code.
 The explanation assumes no prior knowledge of elliptic curves, and it includes a brief introduction to the necessary mathematical background.
 I hope that this will be helpful to anyone wanting to learn how elliptic curve cryptography works in practice.
 \end{abstract}
@@ -50,9 +50,9 @@ I hope that this will be helpful to anyone wanting to learn how elliptic curve c
 Curve25519~\cite{Bernstein:2006kw} is a very widely deployed elliptic curve: it is used for Diffie-Hellman key agreement in the X25519 standard~\cite{X25519}, which is a mandatory algorithm in TLS 1.3~\cite{TLS13}, securing a huge number of HTTPS connections in web browsers worldwide.
 It is also used for encryption in WhatsApp~\cite{WhatsAppWhitepaper}, Signal~\cite{Marlinspike:2016}, and various other systems and protocols.
 However, the standard textbooks on elliptic curve cryptography \cite{Blake:1999,Cohen:2006,Hankerson:2004,Koblitz:1994} predate Curve25519, and I have struggled to find good resources that explain how practical implementations of this algorithm actually work.
-Glancing at an implementation of Curve25519 (see, for example, \autoref{code:scalarmult} on page~\pageref{code:scalarmult}) reveals mysterious sequences of arithmetic operations with few comments, explanation, or justification.
+Glancing at an implementation of X25519 (see, for example, \autoref{code:scalarmult} on page~\pageref{code:scalarmult}) reveals mysterious sequences of arithmetic operations with few comments, explanation, or justification.
 
-The goal of this document is to provide an introduction to elliptic curve cryptography by means of carefully analysing every line of code of one particular implementation of Curve25519.
+The goal of this document is to provide an introduction to elliptic curve cryptography by means of carefully analysing every line of code of one particular implementation of X25519.
 It shows how the algorithm is derived from basic principles, walking through the algebraic derivations step by step.
 No advanced mathematics background is required: all that is needed is some basic modular arithmetic, which should be covered in most undergraduate computer science courses.
 
@@ -65,9 +65,9 @@ TweetNaCl advertises itself as ``auditable''~\cite{Bernstein:2014ca} in the sens
 However, to my knowledge, no detail of any such audit has been published.
 The JavaScript port has indeed been professionally audited, but the report~\cite{TweetNaClAudit} does not go into any technical detail.
 Previous analyses of NaCl/TweetNaCl~\cite{Bernstein:2009,Janssen:2014} give justification for some of the algorithms, but also leave many details unexplained.
-This document partially fills that gap: we discuss only Curve25519, but not the other algorithms that appear in TweetNaCl, such as the Salsa20 stream cipher, the Poly1305 authenticator, or the Ed25519 signature scheme.
+This document partially fills that gap: we discuss only X25519, but not the other algorithms that appear in TweetNaCl, such as the Salsa20 stream cipher, the Poly1305 authenticator, or the Ed25519 signature scheme.
 
-Unlike HACL*~\cite{HACLStar}, which contains a formally verified implementation of Curve25519~\cite{Zinzindohoue:2017fc}, the goal of this document is not so much to verify that TweetNaCl is correct, but rather to learn how elliptic curve cryptography works by carefully studying one particular algorithm and its implementation.
+Unlike HACL*~\cite{HACLStar}, which contains a formally verified implementation of X25519~\cite{Zinzindohoue:2017fc}, the goal of this document is not so much to verify that TweetNaCl is correct, but rather to learn how elliptic curve cryptography works by carefully studying one particular algorithm and its implementation.
 
 \section{Background}\label{sec:background}
 
@@ -309,7 +309,7 @@ One way of preventing this attack is to \emph{validate public keys}~\cite{Antipa
 Moreover, to verify that $s$ has order $q$, the recipient checks whether $s^q = e$ where $e$ is the identity element of the group.
 Alternatively, the recipient could check that $s^h \ne e$ where $h$ is the cofactor, which works because $s^h = e$ whenever the order of $s$ is less than $q$.
 
-Curve25519 does not perform public key validation, and uses a different approach to prevent small subgroup confinement attacks: it ensures that the exponent is always a multiple of the cofactor $h=8$.
+X25519 does not perform public key validation, and uses a different approach to prevent small subgroup confinement attacks: it ensures that the exponent is always a multiple of the cofactor $h=8$.
 Thus, if an attacker sends a group element $s$ with order less than $q$, the result of $s^{hj}$ will always be the identity element, regardless of the private key $j$, and so the adversary learns nothing about the private key.
 When the correct generator $g$ with order $q$ is used, and $j \in [0,\, q-1]$ is uniformly distributed, the distribution of $g^{hj}$ is the same as the uniform distribution of $g^j$, so the extra factor of $h$ in the exponent is harmless.
 
@@ -890,7 +890,7 @@ In this document we use $\bullet$ as the group operation on \emph{elliptic curve
 \subsection{Elliptic-curve Diffie-Hellman}\label{sec:ecdh}
 
 Now that we have constructed a group, we can use this group for cryptographic protocols.
-In particular, Curve25519 is designed for use in Diffie-Hellman key exchange as explained in \autoref{sec:diffie-hellman}.
+In particular, we can use the Curve25519 group to implement the X25519 Diffie-Hellman key exchange function.
 
 For a group element $P \in E$ and a non-negative integer $k$ we define the repeated application of the group operator to $P$ as before:
 \begin{equation}
@@ -907,7 +907,7 @@ In particular, it is believed that the Decisional Diffie-Hellman assumption (see
 The best known algorithms for discrete logarithms in this group, such as Pollard's rho algorithm~\cite{Pollard:1978do}, boil down to essentially trying lots of values of $k$ until we find a result that matches the input $P^k$.
 This algorithm takes approximately $O(\sqrt{k})$ time to find $k$.
 Thus, if we choose $k$ to be $n$ bits long, the time taken is $O(2^{n/2})$.
-Curve25519 chooses $n=251$ (less than 255 because four bits are set to constant values), making the difficulty of computing the discrete logarithm similar to the difficulty of breaking a 128-bit symmetric cipher.
+X25519 chooses $n=251$ (less than 255 because four bits are set to constant values), making the difficulty of computing the discrete logarithm similar to the difficulty of breaking a 128-bit symmetric cipher.
 
 \begin{listing}
 \begin{minted}[linenos]{c}
@@ -958,7 +958,7 @@ If called by the recipient, \verb|y| is the group element sent along with the me
 In either case, computing the scalar product of the group element and the secret integer produces the shared secret, which is written to \verb|s|.
 The function then initialises the HSalsa20 stream cipher~\cite{Bernstein:2014ca} using this shared secret, and writes the cipher state to \verb|k|.
 Subsequent function calls use \verb|k| to encrypt or decrypt the actual message.
-We won't discuss this cipher any further in this document, as it is beyond the scope of Curve25519.
+We won't discuss this cipher any further in this document, as it is beyond the scope of X25519.
 
 \subsection{The Montgomery Ladder}\label{sec:ladder}
 
@@ -981,7 +981,7 @@ At each loop iteration we perform two group operations:
 
 The reason we return two group elements rather than just one is that, as we shall see shortly, there is a particularly efficient formula for computing $P^i \bullet P^{i+1} = P^{2i+1}$ given $P$, $P^i$ and $P^{i+1}$, which is faster than directly using the group law in~\eqref{eq:law-x}, \eqref{eq:law-y}.
 
-In Curve25519 we need to execute this loop 255 times (the integer in the scalar multiplication function is 256 bits, but we set the topmost bit to always be zero, hence only 255 iterations are needed).
+In X25519 we need to execute this loop 255 times (the integer in the scalar multiplication function is 256 bits, but we set the topmost bit to always be zero, hence only 255 iterations are needed).
 As this is the most time-consuming part of the algorithm, we now examine how to perform these group operations as fast as possible.
 
 \paragraph{Using projective coordinates.}
@@ -1315,11 +1315,11 @@ Choosing $k$ from the range $[0,\, 2^{252}-1]$ is, in practice, equivalent to us
 The reason for setting the second-most-significant bit to 1 is unrelated to the cofactor: it is instead a precaution to help ensure constant-time implementations.
 If this bit was zero, then an implementation of scalar multiplication could save the first iteration of the Montgomery ladder without affecting the result; an adversary could then use this timing variation to leak the most significant bit of the private key (and perhaps more).
 Setting this bit to one forces the Montgomery ladder to always use the full 255 iterations.
-The TweetNaCl implementation would be constant-time even without setting this bit to 1, but Curve25519 is defined to always have this bit set as a precaution to protect less careful implementations.
+The TweetNaCl implementation would be constant-time even without setting this bit to 1, but X25519 is defined to always have this bit set as a precaution to protect less careful implementations.
 
 After clamping, \verb|z| is a number of the form $8k$, where $k \in [2^{251},\, 2^{252}-1]$.
-Thus, the distribution of group elements produced by Curve25519 is non-uniform: only about half of the group elements in the subgroup of order $q$ will be generated.
-However, this non-uniformity does not significantly weaken the security of Curve25519 for Diffie-Hellman purposes (apart from the loss of 1 bit of entropy).
+Thus, the distribution of group elements produced by X25519 is non-uniform: only about half of the group elements in the subgroup of order $q$ will be generated.
+However, this non-uniformity does not significantly weaken the security of X25519 for Diffie-Hellman purposes (apart from the loss of 1 bit of entropy).
 % TODO: does this mean that the decision Diffie-Hellman problem is technically not hard for X25519?
 % https://cr.yp.to/highspeed/naclcrypto-20090310.pdf says: "the set of possibilities for k is an easy-to-recognise set"
 
@@ -1354,15 +1354,13 @@ This value can now be used as a public key (if \verb|p| was the base point), or 
 
 \section{Conclusions}
 
-This document has shown how to derive the Curve25519 implementation in TweetNaCl, line by line, from first principles.
+This document has shown how to derive the X25519 implementation in TweetNaCl, line by line, from first principles.
 Starting by assuming only minimal mathematical background knowledge we have explored how modern, constant-time cryptography is implemented, and justified the correctness of this implementation.
 Although we have only studied one particular implementation, other implementations such as libsodium share many principles with the code studied here; after reading this document, you will find it much easier to figure out what other implementations are doing.
 
 For future work it would be interesting to expand this discussion to other common algorithms in elliptic curve cryptography, such as the Ed25519 signature scheme, and other curves such as NIST curves and the secp256k1 curve used by Bitcoin.
 The Ristretto255 prime-order group~\cite{Ristretto255}, which eliminates the cofactor of Curve25519, would also be interesting to discuss.
 I believe that by carefully studying existing implementations of cryptographic algorithms, and by analysing in detail what makes them correct, we can gain a deeper understanding of cryptography in general and improve the quality of implementations of cryptographic protocols.
-
-% TODO: it would be better to frame this as X25519
 
 % Twist security https://safecurves.cr.yp.to/twist.html
 
