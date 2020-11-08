@@ -1,10 +1,4 @@
-\documentclass{article}
-\usepackage[utf8]{inputenc}
-\usepackage[a4paper,margin=2.5cm]{geometry}
-\usepackage[english]{babel}
-\usepackage[hidelinks]{hyperref}
-\usepackage{url}
-\usepackage{doi}
+\documentclass[manuscript]{acmart}
 \usepackage{amsmath}
 \usepackage{amssymb}
 \usepackage{mathtools} % dcases environment
@@ -19,18 +13,26 @@
 % With frozencache=true, the -shell-escape option is no longer needed.
 \usepackage[frozencache=true]{minted}
 
-\urlstyle{rm}
-
 \begin{document}
 \def\listingautorefname{Listing}%
 \def\sectionautorefname{Section}%
 \def\subsectionautorefname{Section}%
 \def\subsubsectionautorefname{Section}%
 
-\title{Implementing Curve25519/X25519: Every Line Explained}
-\author{Martin Kleppmann (University of Cambridge)}
-\date{}
-\maketitle
+\title{Implementing Curve25519/X25519: A Tutorial on Elliptic Curve Cryptography}
+
+\author{Martin Kleppmann}
+\email{mk428@cst.cam.ac.uk}
+\orcid{0000-0001-7252-6958}
+\affiliation{%
+  \institution{University of Cambridge}
+  \department{Department of Computer Science and Technology}
+  \streetaddress{15 JJ Thomson Avenue}
+  \city{Cambridge}
+  \postcode{CB3 0FD}
+  \country{United Kingdom}
+}
+
 \begin{abstract}
 Many textbooks cover the concepts behind Elliptic Curve Cryptography, but few discuss the details of how you go from the equations to a working, fast, and secure implementation of the algorithms.
 Textbooks also tend to leave out the tedious algebraic derivations, making it difficult to reproduce the results they present.
@@ -44,6 +46,28 @@ Starting from first principles, this document shows how to re-derive the TweetNa
 The explanation assumes no prior knowledge of elliptic curves, and it includes a brief introduction to the necessary mathematical background.
 I hope that this will be helpful to anyone wanting to learn how elliptic curve cryptography works in practice.
 \end{abstract}
+
+\begin{CCSXML}
+<ccs2012>
+   <concept>
+       <concept_id>10002978.10002979.10002981.10011745</concept_id>
+       <concept_desc>Security and privacy~Public key encryption</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10003752.10003777.10003788</concept_id>
+       <concept_desc>Theory of computation~Cryptographic primitives</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+ </ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Security and privacy~Public key encryption}
+\ccsdesc[500]{Theory of computation~Cryptographic primitives}
+
+\keywords{elliptic curve cryptography, Diffie-Hellman key agreement, constant-time algorithms, resistance to side-channel attacks}
+\setcopyright{none}
+\maketitle
 
 \section{Introduction}
 
@@ -101,7 +125,7 @@ Reduction modulo $p$ is very useful when performing calculations on a computer, 
 For example, if $p \le 2^n$, then any number in $\mathbb{Z}_p$ fits in $n$ bits.
 
 In cryptography, $p$ is often a large prime number.
-Curve25519 uses arithmetic modulo $p=2^{255}-19=\verb|0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed|$ in hexadecimal (hence the name of the curve), so the numbers in the curve calculations fit in 255 bits (just under 32 bytes).
+For example, Curve25519 uses arithmetic modulo the prime number $p=2^{255}-19=\verb|0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed|$ in hexadecimal (hence the name of the curve), so the numbers in the curve calculations fit in 255 bits (just under 32 bytes).
 The fact that $2^{255}-19$ is a prime number can be checked using algorithms for primality testing.
 
 \subsection{Groups}\label{sec:groups}
@@ -291,7 +315,8 @@ However, this approach is generally not constant-time, whereas the approach usin
 
 In \autoref{sec:group-construction} we will define a group using the Curve25519 elliptic curve.
 This group has order $hq$, where $h=8$ and $q = 2^{252} + 27742317777372353535851937790883648493$ is a prime number.
-The parameters of Curve25519 are specifically chosen such that the order of the group is the product of a small integer $h$ (which is called the \emph{cofactor}, in this case 8), and a prime that is slightly greater than a large power of 2 ($q = \verb|0x1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed|$ in hexadecimal).
+$q$ is only slightly larger than $2^{252}$, as we can see when written in hexadecimal: $q = \verb|0x1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed|$.
+The parameters of Curve25519 are specifically chosen such that the order of the group is the product of a small integer $h$ (which is called the \emph{cofactor}, in this case 8), and a prime that is slightly greater than a large power of 2.
 
 Lagrange's theorem states that if a group $E$ has a subgroup $E'$, then the order of $E$ is divisible by the order of $E'$.
 Since the set of powers of a group element generates a subgroup, this means the order of any group element must be a factor of the order of the group.
@@ -1311,7 +1336,7 @@ If the bit \verb|r| is 1, the values in \verb|a| and \verb|b| are swapped before
 Thus, the inputs to the computation are $a = X_{i+1}$, $b = X_i$, $c = Z_{i+1}$, and $d = Z_i$, and the outputs are $v_{16} = X_{2i+2}$, $v_{18} = 4X_{2i+1}$, $v_{15} = Z_{2i+2}$, and $v_{17} = 4Z_{2i+1}$.
 After the final swaps, the variables \verb|a|, \verb|b|, \verb|c|, and \verb|d| contain the values $(v_{18}, v_{16}, v_{17}, v_{15})$.
 
-Thus, each loop iteration maps input $(X_i, Z_i, X_{i+1}, Z_{i+1})$ to either output $(X_{2i}, Z_{2i}, 4X_{2i+1}, 4Z_{2i+1})$ or output $(4X_{2i+1}, 4Z_{2i+1}, X_{2i+2}, Z_{2i+2})$ depending on the value of \verb|r|.
+Thus, each loop iteration maps the input tuple $(X_i, Z_i, X_{i+1}, Z_{i+1})$ to either the output tuple $(X_{2i}, Z_{2i}, 4X_{2i+1}, 4Z_{2i+1})$ or the output tuple $(4X_{2i+1}, 4Z_{2i+1}, X_{2i+2}, Z_{2i+2})$ depending on the value of \verb|r|.
 This exactly matches the Montgomery ladder step~\eqref{eq:ladder}, except for the additional factor of 4 in $X_{2i+1}$ and $Z_{2i+1}$.
 However, since these two variables are just an expanded representation of the fraction $x_{2i+1} = X_{2i+1}/Z_{2i+1}$, these two factors of 4 cancel out and have no effect on the final result.
 
@@ -1404,12 +1429,12 @@ I believe that by carefully studying existing implementations of cryptographic a
 
 % How not to do it: https://soatok.blog/2020/07/08/gnu-a-heuristic-for-bad-cryptography/
 
-\section*{Acknowledgements}
-
+\begin{acks}
 Thank you to Daniel Hugenroth for feedback on a draft of this document.
 Martin Kleppmann is supported by a Leverhulme Trust Early Career Fellowship and by the Isaac Newton Trust.
+\end{acks}
 
-\bibliographystyle{plainurl}
+\bibliographystyle{ACM-Reference-Format}
 \bibliography{references}
 
 \end{document}
