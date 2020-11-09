@@ -275,25 +275,11 @@ sv car25519(gf o)
   int i;
   i64 c;
   FOR(i,16) {
-    o[i]+=(1LL<<16);
     c=o[i]>>16;
-    o[(i+1)*(i<15)]+=c-1+37*(c-1)*(i==15);
     o[i]-=c<<16;
+    if (i < 15) o[i + 1] += c; else o[0] += 38 * c;
   }
 }
-
-/* This simplified version seems to work equally well:
-sv car25519(gf o)
-{
-  int i;
-  i64 c;
-  FOR(i,16) {
-    c=o[i]>>16;
-    o[(i+1)*(i<15)]+=c+37*c*(i==15);
-    o[i]-=c<<16;
-  }
-}
-*/
 
 sv sel25519(gf p,gf q,int b)
 {
@@ -407,11 +393,11 @@ sv pow2523(gf o,const gf i)
 int crypto_scalarmult(u8 *q,const u8 *n,const u8 *p)
 {
   u8 z[32];
-  i64 x[80],r,i;
-  gf a,b,c,d,e,f;
+  i64 r,i;
+  gf a,b,c,d,e,f,x;
   FOR(i,31) z[i]=n[i];
-  z[31]=(n[31]&127)|64;
-  z[0]&=248;
+  z[31]=(n[31]&0x7f)|0x40;
+  z[0]&=0xf8;
   unpack25519(x,p);
   FOR(i,16) {
     b[i]=x[i];
@@ -443,15 +429,9 @@ int crypto_scalarmult(u8 *q,const u8 *n,const u8 *p)
     sel25519(a,b,r);
     sel25519(c,d,r);
   }
-  FOR(i,16) {
-    x[i+16]=a[i];
-    x[i+32]=c[i];
-    x[i+48]=b[i];
-    x[i+64]=d[i];
-  }
-  inv25519(x+32,x+32);
-  M(x+16,x+16,x+32);
-  pack25519(q,x+16);
+  inv25519(c,c);
+  M(a,a,c);
+  pack25519(q,a);
   return 0;
 }
 

@@ -8,9 +8,9 @@ default:	curve25519.pdf
 # syntax-highlighted listings, and use option frozencache=true to use that cache.
 # With frozencache=true, the -shell-escape option is no longer needed.
 refresh-syntax-highlighting:
-	sed -e 's/\\usepackage\[.*\]{minted}/\\usepackage[finalizecache=true]{minted}/' curve25519.tex
+	sed -e 's/\\usepackage\[.*\]{minted}/\\usepackage[finalizecache=true]{minted}/' -i '' curve25519.tex
 	pdflatex -shell-escape curve25519
-	sed -e 's/\\usepackage\[.*\]{minted}/\\usepackage[frozencache=true]{minted}/' curve25519.tex
+	sed -e 's/\\usepackage\[.*\]{minted}/\\usepackage[frozencache=true]{minted}/' -i '' curve25519.tex
 
 %.pdf:	%.aux %.bbl
 	pdflatex $(@:.pdf=)

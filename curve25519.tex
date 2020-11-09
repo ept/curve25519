@@ -34,17 +34,13 @@
 }
 
 \begin{abstract}
-Many textbooks cover the concepts behind Elliptic Curve Cryptography, but few discuss the details of how you go from the equations to a working, fast, and secure implementation of the algorithms.
-Textbooks also tend to leave out the tedious algebraic derivations, making it difficult to reproduce the results they present.
+Many textbooks cover the concepts behind Elliptic Curve Cryptography, but few explain how to go from the equations to a working, fast, and secure implementation.
 On the other hand, while the code of many cryptographic libraries is available as open source, it can be rather opaque to the untrained eye, and it is rarely accompanied by detailed documentation explaining how the code came about and why it is correct.
 
-The goal of this document is to bridge this gap between the mathematics and implementation of elliptic curve cryptography.
-We do this by carefully studying one particular algorithm, the X25519 Diffie-Hellman key agreement scheme, and its implementation in the TweetNaCl library.
-This library is designed for code readability, but it nevertheless has strong security properties, such as using constant-time algorithms to prevent side-channel attacks.
-
-Starting from first principles, this document shows how to re-derive the TweetNaCl implementation of X25519, including all of the tedious algebra, fully explaining and justifying every line of code.
-The explanation assumes no prior knowledge of elliptic curves, and it includes a brief introduction to the necessary mathematical background.
-I hope that this will be helpful to anyone wanting to learn how elliptic curve cryptography works in practice.
+This tutorial bridges the gap between the mathematics and implementation of elliptic curve cryptography.
+It is written for readers who are new to cryptography, and it assumes no more mathematical background than most undergraduate computer science courses.
+Starting from first principles, this document shows how to derive every line of code in an implementation of the X25519 Diffie-Hellman key agreement scheme, based on the Curve25519 elliptic curve.
+The implementation is fast and secure; in particular, it is constant-time to prevent side-channel attacks.
 \end{abstract}
 
 \begin{CCSXML}
@@ -73,17 +69,18 @@ I hope that this will be helpful to anyone wanting to learn how elliptic curve c
 
 Curve25519~\cite{Bernstein:2006kw} is a very widely deployed elliptic curve: it is used for Diffie-Hellman key agreement in the X25519 standard~\cite{X25519}, which is a mandatory algorithm in TLS 1.3~\cite{TLS13}, securing a huge number of HTTPS connections in web browsers worldwide.
 It is also used for encryption in WhatsApp~\cite{WhatsAppWhitepaper}, Signal~\cite{Marlinspike:2016}, and various other systems and protocols.
-However, the standard textbooks on elliptic curve cryptography \cite{Blake:1999,Cohen:2006,Hankerson:2004,Koblitz:1994} predate Curve25519, and I have struggled to find good resources that explain how practical implementations of this algorithm actually work.
-Glancing at an implementation of X25519 (see, for example, \autoref{code:scalarmult} on page~\pageref{code:scalarmult}) reveals mysterious sequences of arithmetic operations with few comments, explanation, or justification.
+However, the standard textbooks on elliptic curve cryptography \cite{Blake:1999,Cohen:2006,Hankerson:2004,Koblitz:1994} predate Curve25519, and there are not many good resources that explain how practical implementations of this algorithm actually work.
+Glancing at an implementation of X25519 (see, for example, \autoref{code:scalarmult} on page~\pageref{code:scalarmult}, or Section 5 of the X25519 standard document~\cite{X25519}) reveals mysterious sequences of arithmetic operations with few comments, explanation, or justification.
 
 The goal of this document is to provide an introduction to elliptic curve cryptography by means of carefully analysing every line of code of one particular implementation of X25519.
-It shows how the algorithm is derived from basic principles, walking through the algebraic derivations step by step.
+We show how the algorithm is derived from basic principles, walking through the algebraic derivations step by step, and justifying its correctness.
 No advanced mathematics background is required: all that is needed is some basic modular arithmetic, which should be covered in most undergraduate computer science courses.
 
-The implementation analysed in this document is TweetNaCl~\cite{Bernstein:2014ca,TweetNaCl}, a small but practical cryptography library with the same API as NaCl~\cite{NaCl,Bernstein:2012}.
+The implementation we analyse is based on TweetNaCl~\cite{Bernstein:2014ca,TweetNaCl}, a small but practical cryptography library with the same API as NaCl~\cite{NaCl,Bernstein:2012}.
 The name derives from the fact that the implementation fits in 100 tweets of up to 140 characters each.
 TweetNaCl is originally written in C, but its simplicity has made it popular for porting to various other languages, such as JavaScript~\cite{TweetNaCljs}.
 Despite its simplicity, TweetNaCl has strong security properties that we expect of fully-fledged cryptography libraries: in particular, it uses constant-time algorithms to prevent side-channel attacks (that is, it performs no branches or array lookups based on secret values), and it is secure against all known attacks.
+Compared to the original TweetNaCl implementation~\cite{TweetNaCl}, the code in this paper has been slightly reformatted and simplified to improve readability, while leaving functionality, security, and performance unchanged.
 
 TweetNaCl advertises itself as ``auditable''~\cite{Bernstein:2014ca} in the sense that its code is short and simple enough that its correctness can be established through code review.
 However, to my knowledge, no detail of any such audit has been published.
@@ -170,11 +167,12 @@ This makes the concept of a group one of the most common and useful abstractions
 
 A common use of groups in cryptography is the \emph{Diffie-Hellman key exchange}, which allows two parties (Alice and Bob) to establish a shared secret by communicating over an insecure channel, under the assumption that the adversary can only observe but not modify the communication.
 This shared secret can then be used as a key to encrypt messages between the two parties.
-If the adversary may actively interfere with the communication, additional authentication is required, which we don't discuss here.
+If the adversary may actively interfere with the communication, additional authentication is required, which we do not discuss here.
 
 For a group element $g$ and a non-negative integer $k$ we define the repeated application of the group operator to $g$ as follows:
 \begin{equation}\label{eq:power}
-g^k = \underbrace{g \bullet g \bullet \cdots \bullet g}_\text{$k$ times}
+    g^k = \underbrace{g \bullet g \bullet \cdots \bullet g}_\text{$k$ times} \quad\text{or, recursively:}\quad
+    g^0 = e \quad\text{(the identity element), and}\quad g^k = g \bullet g^{k-1} \quad\text{for } k>0.
 \end{equation}
 We show in \autoref{sec:ladder} how to compute $g^k$ efficiently in the Curve25519 group, even for large $k$.
 
@@ -213,7 +211,7 @@ The Diffie-Hellman protocol is secure if the following assumptions are true (whe
 \item[Decisional Diffie-Hellman (DDH) assumption:]
     The adversary is given one of two tuples, either $(g, g^j, g^k, g^{jk})$ or $(g, g^j, g^k, g^i)$, chosen at random with equal probability.
     Then the adversary must choose whether it was given the tuple containing $g^{jk}$ or the tuple containing the random group element $g^i$.
-    It is not feasible for the adversary to choose the correct answer with probability significantly greater than $\frac{1}{2}$ (a random guess).
+    The DDH assumption then states that it is not feasible for the adversary to choose the correct answer with probability significantly greater than $\frac{1}{2}$ (a random guess).
 \end{description}
 
 The DDH assumption is stronger than CDH, and CDH is stronger than the hardness of discrete logarithms.
@@ -266,7 +264,7 @@ Building upon the definition of an abelian group in \autoref{sec:groups}, a fiel
     \item The addition and multiplication operators satisfy the distributive law: $a \cdot (b + c) = (a \cdot b) + (a \cdot c)$.
 \end{itemize}
 The real numbers $\mathbb{R}$ along with the usual addition and multiplication operators form a field with an infinite set of elements, but we can also define a field where the set of elements $F$ is finite.
-This is called a \emph{finite field}, also known as \emph{Galois field}.
+This is called a \emph{finite field} (\emph{Galois field}).
 
 Curve25519 uses the finite field of integers modulo $p = 2^{255}-19$.
 Like in \autoref{sec:groups}, this field has the elements $\mathbb{Z}_p = \{0, 1, \dots, p-1\}$, with the usual addition and multiplication operators on integers, followed by reduction modulo $p$.
@@ -282,7 +280,7 @@ Thus, the result of division is still an integer modulo $p$ (a field element), n
 
 Let $a \in E$ be an element of a finite group $E$ with operator $\bullet$ and identity element $e$.
 Consider the set of powers of $a$, that is, $\{a^0, a^1, \dots\}$, where $a^0 = e$ and $a^k = a \bullet a \bullet \dots \bullet a$ means applying $a$ to itself $k$ times.
-By the closure property, the result of $\bullet$ is always a group member, so the set of powers must be a subset of the group elements $E$.
+By the closure property, the result of $\bullet$ is always an element of the group, so the set of powers must be a subset of the group elements $E$.
 When the group is finite, the set of powers must also be finite.
 
 The set of powers of $a \in E$ is called the \emph{subgroup} of $E$ that is \emph{generated} by $a$.
@@ -309,7 +307,7 @@ Since $a^{p-1} = a \cdot a^{p-2}$ we have that $a^{p-2}$ is the multiplicative i
 We will use this fact in \autoref{sec:inverse} to compute inverses.
 
 It is also possible to compute multiplicative inverses using the extended Euclid's algorithm.
-However, this approach is generally not constant-time, whereas the approach using Fermat's little theorem is easy to make constant-time, since the exponent $p-2$ is a constant.
+However, this approach is generally not constant-time, whereas the approach using Fermat's little theorem is easy to make constant-time.
 
 \subsection{The cofactor and small subgroups}\label{sec:cofactor}
 
@@ -358,17 +356,17 @@ In the case of Curve25519 this is the field of integers modulo the prime $p = 2^
 Most programming languages do not have built-in support for such large numbers; moreover, a general-purpose implementation of big numbers might not be suitable for cryptographic purposes, because the running time and memory access patterns of an operation may depend on the values of its inputs.
 Such variations in timing and memory access can be exploited by \emph{side-channel attacks} to potentially leak secrets to an adversary.
 
-The TweetNaCl library analysed in this document includes its own implementation of field arithmetic, which takes care to use \emph{constant-time} algorithms whose running time does not depend on the input values.
-The algorithms only rely on standard arithmetic and bit operators in C, which compile directly to CPU instructions.
+The implementation analysed in this document includes its own implementation of field arithmetic, which takes care to use \emph{constant-time} algorithms whose running time and memory access patterns do not depend on the input values.
+The algorithms only rely on standard arithmetic and bit operators in C, which always take the same time to execute.
 
-\subsection{Addition and subtraction in TweetNaCl}\label{sec:add-subtract}
+\subsection{Addition and subtraction}\label{sec:add-subtract}
 
-TweetNaCl uses two different representations for integers modulo $p = 2^{255}-19$: either as a 32-element array of 8-bit values (bytes), or as a 16-element array of 16-bit values.
-The 32-byte representation is used for input and output, while the representation using 16-bit elements is used internally by the arithmetic operators.
+We use two representations for integers modulo $p = 2^{255}-19$: a 32-element array of 8-bit values (bytes), and a 16-element array of 16-bit values.
+The 32-byte representation is used for input and output, while the 16-element representation is used internally by the arithmetic operators.
 In both cases, a little-endian order is used, i.e.\ the first element of an array contains the least significant bits, and the last element contains the most significant bits.
 
-\autoref{code:arithmetic} shows the TweetNaCl implementation of the finite field arithmetic modulo $p$: addition, subtraction, and multiplication.
-In this code, the \verb|gf| datatype (short for \emph{Galois field}?), defined on line~5, is used for the number representation that uses 16 elements.
+\autoref{code:arithmetic} shows the implementation of addition, subtraction, and multiplication modulo $p$.
+The \verb|field_elem| datatype, defined on line~3, is used for the 16-element number representation.
 Even though each element initially holds just 16 bits, it is declared as a 16-element array of 64-bit signed integers in order to simplify the following computations.
 
 We can think of a 16-element array $(a_0, a_1, \dots, a_{15})$ as representing a number $a$ by multiplying each element with the appropriate power of 2:
@@ -377,69 +375,62 @@ This expression is still well-defined even if individual elements $a_i$ lie outs
 
 \begin{listing}
 \begin{minted}[linenos]{c}
-#define FOR(i,n) for (i = 0;i < n;++i)
-#define sv static void
 typedef unsigned char u8;
 typedef long long i64;
-typedef i64 gf[16];
+typedef i64 field_elem[16];
 
-sv unpack25519(gf o, const u8 *n)
+static void unpack25519(field_elem out, const u8 *in)
 {
   int i;
-  FOR(i,16) o[i]=n[2*i]+((i64)n[2*i+1]<<8);
-  o[15]&=0x7fff;
+  for (i = 0; i < 16; ++i) out[i] = in[2*i] + ((i64) in[2*i + 1] << 8);
+  out[15] &= 0x7fff;
 }
 
-sv car25519(gf o)
+static void carry25519(field_elem elem)
 {
   int i;
-  i64 c;
-  FOR(i,16) {
-    o[i]+=(1LL<<16);
-    c=o[i]>>16;
-    o[(i+1)*(i<15)]+=c-1+37*(c-1)*(i==15);
-    o[i]-=c<<16;
+  i64 carry;
+  for (i = 0; i < 16; ++i) {
+    carry = elem[i] >> 16;
+    elem[i] -= carry << 16;
+    if (i < 15) elem[i + 1] += carry; else elem[0] += 38 * carry;
   }
 }
 
-sv A(gf o,const gf a,const gf b) /* add: o = a + b */
+static void fadd(field_elem out, const field_elem a, const field_elem b) /* out = a + b */
 {
   int i;
-  FOR(i,16) o[i]=a[i]+b[i];
+  for (i = 0; i < 16; ++i) out[i] = a[i] + b[i];
 }
 
-sv Z(gf o,const gf a,const gf b) /* subtract: o = a - b */
+static void fsub(field_elem out, const field_elem a, const field_elem b) /* out = a - b */
 {
   int i;
-  FOR(i,16) o[i]=a[i]-b[i];
+  for (i = 0; i < 16; ++i) out[i] = a[i] - b[i];
 }
 
-sv M(gf o,const gf a,const gf b) /* multiply: o = a * b */
+static void fmul(field_elem out, const field_elem a, const field_elem b) /* out = a * b */
 {
-  i64 i,j,t[31];
-  FOR(i,31) t[i]=0;
-  FOR(i,16) FOR(j,16) t[i+j]+=a[i]*b[j];
-  FOR(i,15) t[i]+=38*t[i+16];
-  FOR(i,16) o[i]=t[i];
-  car25519(o);
-  car25519(o);
-}
-
-sv S(gf o,const gf a) /* square: o = a^2 */
-{
-  M(o,a,a);
+  i64 i, j, product[31];
+  for (i = 0; i < 31; ++i) product[i] = 0;
+  for (i = 0; i < 16; ++i) {
+    for (j = 0; j < 16; ++j) product[i+j] += a[i] * b[j];
+  }
+  for (i = 0; i < 15; ++i) product[i] += 38 * product[i+16];
+  for (i = 0; i < 16; ++i) out[i] = product[i];
+  carry25519(out);
+  carry25519(out);
 }
 \end{minted}
-\caption{Field arithmetic modulo $p = 2^{255} - 19$: addition, subtraction, multiplication, and squaring.}\label{code:arithmetic}
+\caption{Field arithmetic modulo $p = 2^{255} - 19$: addition, subtraction, and multiplication.}\label{code:arithmetic}
 \end{listing}
 
-We start with the \verb|unpack25519| function on lines~7--12 of \autoref{code:arithmetic}, which converts a number from the byte array representation to the \verb|gf| representation.
-\verb|FOR(i,16)| is a convenience macro defined on line~1.
-The loop takes two adjacent bytes, \verb|n[2*i]| and \verb|n[2*i+1]|, and combines them into a 16-bit value by shifting the second byte left by 8~bits and then adding them.
-In the last line, it forces the most significant bit (the 255th bit) to be zero, since our numbers are always less than $2^{255}$.
-Strictly speaking, this function allows the value to be within the range $[0,\, 2^{255} - 1]$, including the values $\{2^{255} - 19,\, \dots,\, 2^{255} - 1\}$ that are not reduced modulo $p$, but this not do any harm, since the functions that take the \verb|gf| type as input handle these numbers correctly.
+We start with the \verb|unpack25519| function on lines~5--10 of \autoref{code:arithmetic}, which converts a number (a $\mathbb{Z}_p$ field element) from the byte array representation to the \verb|field_elem| representation.
+The loop takes two adjacent bytes, \verb|in[2*i]| and \verb|in[2*i + 1]|, and combines them into a 16-bit value by shifting the second byte left by 8~bits and then adding them.
+On line 9, it forces the most significant bit (the 255th bit) to be zero, since our numbers are always less than $2^{255}$.
+Strictly speaking, this function allows the value to be within the range $[0,\, 2^{255} - 1]$, including the values $\{2^{255} - 19,\, \dots,\, 2^{255} - 1\}$ that are not reduced modulo $p$, but this not do any harm, since the functions that take the \verb|field_elem| type as input handle these numbers correctly.
 
-The \verb|A| function on lines~26--30 of \autoref{code:arithmetic} adds two numbers in \verb|gf| form, and similarly the \verb|Z| function on lines~32--36 subtracts two numbers.
+The \verb|fadd| function on lines~23--27 of \autoref{code:arithmetic} adds two field elements in \verb|field_elem| form, and similarly the \verb|fsub| function on lines~29--33 subtracts two field elements.
 These functions are straightforward: they just add or subtract each of the 16 elements separately.
 \begin{align*}
     a + b &= (a_0 2^0 + a_1 2^{16} + a_2 2^{32} + \dots + a_{15} 2^{240}) + (b_0 2^0 + b_1 2^{16} + b_2 2^{32} + \dots + b_{15} 2^{240}) \\
@@ -448,40 +439,40 @@ These functions are straightforward: they just add or subtract each of the 16 el
     &= (a_0 - b_0)\, 2^0 + (a_1 - b_1)\, 2^{16} + (a_2 - b_2)\, 2^{32} + \dots + (a_{15} - b_{16})\, 2^{240}
 \end{align*}
 
-Since the \verb|gf| type uses 64-bit signed integers for each of the 16 elements, these addition or subtraction operations don't overflow or underflow, and we don't have to worry about propagating carry bits.
+Since the \verb|field_elem| type uses 64-bit signed integers for each of the 16 elements, these addition or subtraction operations don't overflow or underflow, and we don't have to worry about propagating carry bits.
 However, we have to keep in mind that each of the elements may now be greater than $2^{16}$, or negative.
 
 \subsection{Multiplication modulo $p$}\label{sec:multiplication}
 
-The \verb|M| function on lines~38--47 multiplies two numbers in \verb|gf| form.
-\verb|t| is a 31-element array of 64-bit integers, initialised to zero.
-On line~42 we perform \verb|FOR(i,16) FOR(j,16) t[i+j]+=a[i]*b[j]|: iterating in a nested loop over each of the elements of the input numbers \verb|a| and \verb|b|, and adding their product to the appropriate elements of \verb|t|.
+The \verb|fmul| function on lines~35--46 multiplies two numbers in \verb|field_elem| form.
+\verb|product| is a 31-element array of 64-bit integers, initialised to zero.
+On lines~39--41 we iterate in a nested loop over each of the elements of the input numbers \verb|a| and \verb|b|, and adding their product to the appropriate elements of \verb|product|.
 This is equivalent to how we do long multiplication with pen and paper:
 \begin{align}
-    t = a \cdot b &= (a_0 2^0 + a_1 2^{16} + a_2 2^{32} + \dots + a_{15} 2^{240}) \cdot (b_0 2^0 + b_1 2^{16} + b_2 2^{32} + \dots + b_{15} 2^{240}) \nonumber\\
+    \mathit{product} = a \cdot b &= (a_0 2^0 + a_1 2^{16} + a_2 2^{32} + \dots + a_{15} 2^{240}) \cdot (b_0 2^0 + b_1 2^{16} + b_2 2^{32} + \dots + b_{15} 2^{240}) \nonumber\\
     &= a_0 b_0 2^{0+0} + a_1 b_0 2^{16+0} + \dots + a_{15} b_0 2^{240+0} + a_0 b_1 2^{0+16} + a_1 b_1 2^{16+16} + \dots + a_{15} b_{15} 2^{240+240} \nonumber\\
     &= a_0 b_0 2^0 + (a_1 b_0 + a_0 b_1)\, 2^{16} + (a_2 b_0 + a_1 b_1 + a_0 b_2)\, 2^{32} + \dots + a_{15} b_{15} 2^{480} \label{eq:multiplication}
 \end{align}
-The 31-element array \verb|t| now contains the product of \verb|a| and \verb|b| (the product of two 255-bit numbers is a 510-bit number).
+\verb|product| now contains the product of \verb|a| and \verb|b| (the product of two 255-bit numbers is a 510-bit number).
 
-In order to bring the 31-element array \verb|t| into a 16-element \verb|gf| form, we can reduce modulo $p$, as explained in \autoref{sec:modular-arithmetic}.
-However, for performance reasons, TweetNaCl doesn't fully reduce modulo $p$ in the multiplication function \verb|M|.
-Instead, we reduce modulo $2p = 2\,(2^{255} - 19) = 2^{256} - 38$ on line~43 of \autoref{code:arithmetic}.
-This is valid because reducing modulo a multiple of $p$ preserves all of the necessary information; we can later reduce modulo $p$ and the end result will be the same as if we hadn't performed the intermediate reduction modulo $2p$.
+In order to bring the 31-element array \verb|product| into a 16-element \verb|field_elem| form, we can reduce modulo $p$, as explained in \autoref{sec:modular-arithmetic}.
+However, for performance reasons, we do not fully reduce modulo $p$ in the multiplication function \verb|fmul|.
+Instead, we reduce modulo $2p = 2\,(2^{255} - 19) = 2^{256} - 38$ on line~42 of \autoref{code:arithmetic}.
+This is valid because reducing modulo a multiple of $p$ preserves all of the necessary information; we can later reduce modulo $p$ and the end result will be the same as if we had not performed the intermediate reduction modulo $2p$.
 
-\verb|FOR(i,15) t[i]+=38*t[i+16]| \emph{almost} reduces modulo $2p$ because $2^{256} = 2p + 38$:
+\verb|for (i = 0; i < 15; ++i) product[i] += 38 * product[i+16]| \emph{almost} reduces \verb|product| modulo $2p$ because $2^{256} = 2p + 38$:
 \begin{align}
-    t &= t_0 2^0 + t_1 2^{16} + t_2 2^{32} + \dots + t_{15} 2^{240} + t_{16} 2^{256} + t_{17} 2^{272} \dots + t_{30} 2^{480} \nonumber\\
+    \mathit{product} &= t_0 2^0 + t_1 2^{16} + t_2 2^{32} + \dots + t_{15} 2^{240} + t_{16} 2^{256} + t_{17} 2^{272} \dots + t_{30} 2^{480} \nonumber\\
     &= t_0 2^0 + t_1 2^{16} + t_2 2^{32} + \dots + t_{15} 2^{240} + t_{16} 2^0\, (2p + 38) + t_{17} 2^{16}\, (2p + 38) + \dots + t_{30} 2^{224}\, (2p + 38) \nonumber\\
     &\equiv t_0 2^0 + t_1 2^{16} + t_2 2^{32} + \dots + t_{15} 2^{240} + 38\, t_{16} 2^0 + 38\, t_{17} 2^{16} \dots + 38\, t_{30} 2^{224} \pmod{2p} \nonumber\\
     &= (t_0 + 38\, t_{16})\, 2^0 + (t_1 + 38\, t_{17})\, 2^{16} + \dots + (t_{14} + 38\, t_{30})\, 2^{224} + t_{15} 2^{240} \label{eq:reduce-2p}
 \end{align}
-After this step the result is in elements \verb|t[0]| to \verb|t[15]|, and we ignore \verb|t[16]| to \verb|t[30]|.
-This computation is ``almost'' a reduction modulo $2p$ because, although the number now fits in the \verb|gf| type with 16 elements, we have not yet done anything to bring each element within the $[0,\, 2^{16}-1]$ range, so the number as a whole is not fully reduced modulo $2p$.
+After this step the result is in elements \verb|product[0]| to \verb|product[15]|, and we ignore \verb|product[16]| to \verb|product[30]|.
+This computation is ``almost'' a reduction modulo $2p$ because, although the number now fits in the \verb|field_elem| type with 16 elements, we have not yet done anything to bring each element within the $[0,\, 2^{16}-1]$ range, so the number as a whole is not fully reduced modulo $2p$.
 
-Before we continue, let's check that the calculation we have done so far does not overflow the 64-bit variables we are using (signed integer overflow is undefined behaviour in C, so it is important to be sure that it cannot happen).
+Before we continue, we should check that the calculation so far does not overflow the 64-bit variables we are using (signed integer overflow is undefined behaviour in C, so it is important to be sure that it cannot happen).
 When we come to use the addition, subtraction, and multiplication functions in \autoref{sec:ladder-optimised}, it will turn out that the result of a multiplication undergoes at most one addition or subtraction before becoming the input to another multiplication.
-Thus, if we assume that a multiplication returns a \verb|gf| number in which each element is in the range $[0,\, 2^{16}]$, then after one addition or subtraction, we can assume that each of the elements $a_i$, $b_i$ of the inputs to a multiplication is in the range $[-2^{16},\, 2^{17}]$.
+Thus, if we assume that a multiplication returns a \verb|field_elem| number in which each element is in the range $[0,\, 2^{16}]$, then after one addition or subtraction, we can assume that each of the elements $a_i$, $b_i$ of the inputs to a multiplication is in the range $[-2^{16},\, 2^{17}]$.
 The greatest number of terms being added to one element in equation~\eqref{eq:multiplication} is for $t_{15}$:
 \[ t_{15} = a_{15} b_0 + a_{14} b_1 + a_{13} b_2 + \dots + a_1 b_{14} + a_0 b_{15} \]
 
@@ -490,108 +481,82 @@ Reduction modulo $2p$ in equation~\eqref{eq:reduce-2p} may further multiply an e
 Thus, we can conclude that 64-bit arithmetic gives us plenty of headroom to complete the calculation without overflowing.\footnote{Incidentally, the JavaScript port of TweetNaCl uses double-precision floating-point arithmetic, since JavaScript does not support 64-bit integer arithmetic.
 IEEE 754 double-precision floating point numbers use an exact representation for integers in the range $[-2^{53}+1,\, 2^{53}-1]$; as we can see from this analysis, that precision is also sufficient to perform this multiplication algorithm correctly.}
 
-Finally, in order to bring the elements back into the range $[0,\, 2^{16}-1]$, the \verb|M| function first copies \verb|t[0]| to \verb|t[15]| into the output variable \verb|o|, and then calls the \verb|car25519| function twice (lines~44--46).
+Finally, in order to bring the elements back into the range $[0,\, 2^{16}-1]$, the \verb|fmul| function first copies \verb|product[0]| to \verb|product[15]| into the output variable \verb|out|, and then calls the \verb|carry25519| function twice (lines~43--45).
 
-The \verb|car25519| function (lines~14--24 of \autoref{code:arithmetic}, \emph{car} presumably stands for ``carry'') cleans up a value of type \verb|gf| by \emph{almost} bringing all of the elements within the $[0,\, 2^{16}-1]$ range.
-I say ``almost'' because there are edge cases in which some elements exceed that range after one or two calls to \verb|car25519|.
+The \verb|carry25519| function (lines~12--21 of \autoref{code:arithmetic}) cleans up a value of type \verb|field_elem| by \emph{almost} bringing all of the elements within the $[0,\, 2^{16}-1]$ range.
+I say ``almost'' because there are edge cases in which some elements exceed that range after one or two calls to \verb|carry25519|.
 In order to be certain that all of the elements are within $[0,\, 2^{16}-1]$, the function needs to be called \emph{three} times.
-However, after two calls to \verb|car25519|, that range can only be exceeded by a small amount; for the purposes of the multiplication function, two calls are sufficient, since we just need to ensure the element values are small enough that they do not cause overflow when they become the input to subsequent multiplications.
+However, after two calls to \verb|carry25519|, that range can only be exceeded by a small amount; for the purposes of the multiplication function, two calls are sufficient, since we just need to ensure the element values are small enough that they do not cause overflow when they become the input to subsequent multiplications.
 
-% Here's an example value that requires three calls to car25519(val) before all elements are within [0, 0xffff]:
-% gf val = {0x10, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xfffffffff};
+% Here's an example value that requires three calls to carry25519(val) before all elements are within [0, 0xffff]:
+% field_elem val = {0x10, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xfffffffff};
 
-\verb|car25519| iterates over the 16 elements of the \verb|gf| number \verb|o|, performing the following for each:
+\verb|carry25519| iterates over the 16 elements of the \verb|field_elem| number \verb|elem|, performing the following for each:
 \begin{enumerate}
-\item Line~19 performs \verb|o[i]+=(1LL<<16);| which adds $2^{16}$ to \verb|o[i]|.
-    Later, line~21 compensates for this addition, so that it does not affect the end result.
+\item Line~17 computes \verb|carry = elem[i] >> 16;| selecting all bits that are greater than the low-order 16 bits.
 
-\item Line~20 computes \verb|c=o[i]>>16;| this is the \emph{carry}, that is, all of the bits more significant than the low-order 16 bits.
+\item Line~18 updates \verb|elem[i] -= carry << 16;| which subtracts the carry bits from \verb|elem[i]|, leaving its value within the range $[0,\, 2^{16}-1]$ (even if the case where \verb|elem[i]| was previously negative).
 
-\item Line~21, \verb|o[(i+1)*(i<15)]+=c-1+37*(c-1)*(i==15);| is an obfuscated way of writing:
-\begin{minted}{c}
-  if (i < 15) {
-    o[i + 1] += c - 1;
-  } else {
-    o[0] += 38 * (c - 1);
-  }
-\end{minted}
-It uses the fact that a comparison expression like \verb|i<15| evaluates to the integer 1 if true, and the integer 0 if false.
-In this case, using an \verb|if| statement would not violate the constant-time guarantees (since the variable \verb|i| is not dependent on any secret value), so this line of code is somewhat gratuitous cleverness.
-
-    The purpose of this line is to add the carry to the next element; 1 is subtracted from \verb|c| to compensate for the earlier addition of $2^{16}$ to \verb|o[i]|.
+\item On line~19, the carry bits are added to the next element, except when \verb|elem[i]| is already the last element.
     If we are at the last element (\verb|i == 15|), the carry is multiplied by 38 and added to the first element, performing reduction modulo $2p$ as previously in equation~\eqref{eq:reduce-2p}.
-
-\item Line~22 updates \verb|o[i]-=c<<16;| which subtracts the carry bits from \verb|o[i]|, leaving its value within the range $[0,\, 2^{16}-1]$.
+    This operation is constant-time despite the presence of an \verb|if| statement, since it only depends on the variable \verb|i|, which is not secret.
 \end{enumerate}
 
-\paragraph{Open question.}
-Why does \verb|car25519| add $2^{16}$ to each element (and then subsequently subtract 1 from the carry)?
-This is not sufficient to make the value non-negative, since values could be as small as $-2^{43}$.
-\verb|o[i]>>16| rounds down (even for negative numbers), so \verb|o[i]-=c<<16| always leaves \verb|o[i]| non-negative, even without the prior addition of \verb|1LL<<16|.
-I think this code could be simplified without affecting its correctness.
-\vspace{1pt}
+If it was not for the last element's carry wrapping around to \verb|elem[0]|, the \verb|carry25519| function would leave all elements within $[0,\, 2^{16}-1]$.
+However, this carry can cause \verb|elem[0]| to be greater than $2^{16}$, or even negative.
+A second call to \verb|carry25519| can fix this; however, if elements \verb|elem[1]| to \verb|elem[15]| are close to \verb|0xffff|, the carry bits from \verb|elem[0]| can cause a cascade of carries on the second call, resulting in a further carry from \verb|elem[15]| to \verb|elem[0]|, causing \verb|elem[0]| to exceed \verb|0xffff| \emph{again}.
+On a third call to \verb|carry25519|, such a carry cascade is no longer possible, since the values of the middle elements are now zero, and so the third call finally brings all elements within the range $[0,\, 2^{16}-1]$.
 
-If it was not for the last element's carry wrapping around to \verb|o[0]|, the \verb|car25519| function would leave all elements within $[0,\, 2^{16}-1]$.
-However, this carry can cause \verb|o[0]| to be greater than $2^{16}$, or even negative.
-A second call to \verb|car25519| can fix this; however, if elements \verb|o[1]| to \verb|o[15]| are close to \verb|0xffff|, the carry bits from \verb|o[0]| can cause a cascade of carries on the second call, resulting in a further carry from \verb|o[15]| to \verb|o[0]|, causing \verb|o[0]| to exceed \verb|0xffff| \emph{again}.
-On a third call to \verb|car25519|, such a carry cascade is no longer possible, since the values of the middle elements are now zero, and so the third call finally brings all elements within the range $[0,\, 2^{16}-1]$.
-
-In any case, the number of times \verb|car25519| is called must be constant (not dependent on whether or not there is a carry), since otherwise the function would no longer be constant-time.
-
-Finally, the \verb|S| function on lines~49--52 of \autoref{code:arithmetic} squares the number \verb|a| by multiplying it by itself.
+In any case, the number of times \verb|carry25519| is called must be constant (not dependent on whether or not there is a carry), since otherwise the function would no longer be constant-time.
 
 \begin{listing}
 \begin{minted}[linenos]{c}
-#define FOR(i,n) for (i = 0;i < n;++i)
-#define sv static void
 typedef unsigned char u8;
 typedef long long i64;
-typedef i64 gf[16];
+typedef i64 field_elem[16];
 
-sv inv25519(gf o,const gf i)
+static void finverse(field_elem out, const field_elem in)
 {
-  gf c;
-  int a;
-  FOR(a,16) c[a]=i[a];
-  for(a=253;a>=0;a--) {
-    S(c,c);
-    if(a!=2&&a!=4) M(c,c,i);
+  field_elem c;
+  int i;
+  for (i = 0; i < 16; ++i) c[i] = in[i];
+  for (i = 253; i >= 0; i--) {
+    fmul(c,c,c);
+    if (i != 2 && i != 4) fmul(c,c,in);
   }
-  FOR(a,16) o[a]=c[a];
+  for (i = 0; i < 16; ++i) out[i] = c[i];
 }
 
-sv sel25519(gf p,gf q,int b)
+static void swap25519(field_elem p, field_elem q, int bit)
 {
-  i64 t,i,c=~(b-1);
-  FOR(i,16) {
-    t= c&(p[i]^q[i]);
-    p[i]^=t;
-    q[i]^=t;
+  i64 t, i, c = ~(bit - 1);
+  for (i = 0; i < 16; ++i) {
+    t = c & (p[i] ^ q[i]);
+    p[i] ^= t;
+    q[i] ^= t;
   }
 }
 
-sv pack25519(u8 *o,const gf n)
+static void pack25519(u8 *out, const field_elem in)
 {
-  int i,j,b;
-  gf m,t;
-  FOR(i,16) t[i]=n[i];
-  car25519(t);
-  car25519(t);
-  car25519(t);
-  FOR(j,2) {
-    m[0]=t[0]-0xffed;
-    for(i=1;i<15;i++) {
-      m[i]=t[i]-0xffff-((m[i-1]>>16)&1);
-      m[i-1]&=0xffff;
+  int i, j, carry;
+  field_elem m, t;
+  for (i = 0; i < 16; ++i) t[i] = in[i];
+  carry25519(t); carry25519(t); carry25519(t);
+  for (j = 0; j < 2; ++j) {
+    m[0] = t[0] - 0xffed;
+    for(i = 1; i < 15; i++) {
+      m[i] = t[i] - 0xffff - ((m[i-1] >> 16) & 1);
+      m[i-1] &= 0xffff;
     }
-    m[15]=t[15]-0x7fff-((m[14]>>16)&1);
-    b=(m[15]>>16)&1;
-    m[14]&=0xffff;
-    sel25519(t,m,1-b);
+    m[15] = t[15] - 0x7fff - ((m[14] >> 16) & 1);
+    carry = (m[15] >> 16) & 1;
+    m[14] &= 0xffff;
+    swap25519(t, m, 1 - carry);
   }
-  FOR(i,16) {
-    o[2*i]=t[i]&0xff;
-    o[2*i+1]=t[i]>>8;
+  for (i = 0; i < 16; ++i) {
+    out[2*i] = t[i] & 0xff;
+    out[2*i + 1] = t[i] >> 8;
   }
 }
 \end{minted}
@@ -600,67 +565,67 @@ sv pack25519(u8 *o,const gf n)
 
 \subsection{Computing the multiplicative inverse}\label{sec:inverse}
 
-Now that we have defined addition, subtraction, and multiplication, the missing arithmetic operation is division modulo $p=2^{255}-19$.
+Now that we have defined addition, subtraction, and multiplication, the missing arithmetic operation on field elements is division modulo $p=2^{255}-19$.
 As explained in \autoref{sec:cyclic}, we perform division $\frac{b}{a}$ by computing the multiplicative inverse of the denominator, $a^{-1}$, and then multiplying that inverse with the numerator $b$.
 
-The \verb|inv25519| function on lines~7--17 of \autoref{code:pack25519} computes the multiplicative inverse of its input \verb|i|, writing the result to the output variable \verb|o|.
-Both input and output are in \verb|gf| form.
+The \verb|finverse| function on lines~5--15 of \autoref{code:pack25519} computes the multiplicative inverse of its input \verb|in|, writing the result to the output variable \verb|out|.
+Both input and output are in \verb|field_elem| form.
 The computation of the inverse uses Fermat's little theorem as per \autoref{sec:cyclic}, by computing $a^{-1} \equiv a^{p-2} \pmod{p}$.
 The exponential $a^{p-2}$ can be computed using the \emph{square-and-multiply} method, which is based on the following recursive relations:
 \[ a^{2i} = a^i \cdot a^i \qquad\text{and}\qquad a^{2i+1} = a \cdot a^i \cdot a^i. \]
 That is, we first compute $a^i$ recursively, and then square $a^i$ to obtain $a^{2i}$.
 If the exponent is odd, we additionally multiply the result with another copy of $a$ to obtain $a^{2i+1}$.
 
-$p-2 = 2^{255}-21 = \texttt{0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeb}$ is a constant, so \verb|inv25519| hard-codes the pattern of squarings and multiplications.
+$p-2 = 2^{255}-21 = \texttt{0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeb}$ is a constant, so \verb|finverse| hard-codes the pattern of squarings and multiplications.
 All of the bits of $p-2$ are 1, except for bits 2 and 4, which are 0 (where bit 0 is the least-significant bit).
-The loop in the \verb|inv25519| function counts down from the most-significant to the least-significant bit, squaring the current value \verb|c| using the \verb|S| function for each bit, and also multiplying \verb|c| with the input value \verb|i| using the \verb|M| function for each bit that is 1.
-Even though $p-2$ consists of 255 bits, the loop is able to start at bit 253 and save one iteration by initialising \verb|c| to \verb|i| instead of 1.
-At the end, \verb|c| is copied to the output variable \verb|o|.
+The loop in the \verb|finverse| function counts down from the most-significant to the least-significant bit, squaring the current value \verb|c| using the \verb|fmul| function for each bit, and also multiplying \verb|c| with the input value \verb|in| for each bit that is 1.
+Even though $p-2$ consists of 255 bits, the loop is able to start at bit 253 and save one iteration by initialising \verb|c| to \verb|in| instead of 1.
+At the end, \verb|c| is copied to the output variable \verb|out|.
 
 \subsection{Converting back to a byte array}\label{sec:pack}
 
-The final aspect of finite field arithmetic that we need to complete is to convert from the \verb|gf| representation of a number back to the byte array representation, which is done by the \verb|pack25519| function on lines~29--52 of \autoref{code:pack25519}.
+The final aspect of finite field arithmetic that we need to complete is to convert from the \verb|field_elem| representation of a number back to the byte array representation, which is done by the \verb|pack25519| function on lines~27--48 of \autoref{code:pack25519}.
 This function performs the inverse of the \verb|unpack25519| function discussed in \autoref{sec:add-subtract}.
 In the process, we will also reduce the number modulo $p$, which ensures that every distinct element in the field of integers modulo $p$ is represented by a unique byte string.
 This will be essential when we later want to use such a field element to derive an encryption key.
 
-First, we explain the helper function \verb|sel25519(p,q,b)| on lines~19--27 of \autoref{code:pack25519}.
-If the bit \verb|b| is 1, this function swaps the content of parameters \verb|p| and \verb|q| (both in \verb|gf| representation), and it does nothing if \verb|b| is 0.
-Since \verb|b| may be part of a secret value, this function cannot use a simple \verb|if| statement, since that would not be constant-time.
-Instead, it must ensure that it always performs exactly the same operations, regardless of the value of \verb|b|.
+First, we explain the helper function \verb|swap25519(p, q, bit)| on lines~17--25 of \autoref{code:pack25519}.
+If \verb|bit| is 1, this function swaps the content of parameters \verb|p| and \verb|q| (both in \verb|field_elem| representation), and it does nothing if \verb|bit| is 0.
+Since \verb|bit| may be part of a secret value, this function cannot use a simple \verb|if| statement, since that would not be constant-time.
+Instead, it must ensure that it always performs exactly the same operations, regardless of the value of \verb|bit|.
 
-\verb|sel25519| first sets \verb|c=~(b-1)|, which equals 0 if \verb|b == 0|, and \verb|0xffff...| if \verb|b == 1|.
-Next it iterates over each of the 16 elements of the number, and computes \verb|t = c&(p[i]^q[i])| for index \verb|i|, which equals 0 if \verb|b == 0|, and \verb|p[i]^q[i]| if \verb|b == 1|.
-The operation \verb|p[i] ^= t| thus has no effect if \verb|b == 0|, and it sets \verb|p[i] = p[i] ^ (p[i] ^ q[i]) = q[i]| if \verb|b == 1|.
-Likewise, \verb|q[i]| is set to \verb|p[i]| if \verb|b == 1|.
+\verb|swap25519| first sets \verb|c = ~(bit - 1)|, which equals 0 if \verb|bit == 0|, and \verb|0xffff...| if \verb|bit == 1|.
+Next it iterates over each of the 16 elements of the number, and computes \verb|t = c & (p[i] ^ q[i])| for index \verb|i|, which equals 0 if \verb|bit == 0|, and \verb|p[i] ^ q[i]| if \verb|bit == 1|.
+The operation \verb|p[i] ^= t| thus has no effect if \verb|bit == 0|, and it sets \verb|p[i] = p[i] ^ (p[i] ^ q[i]) = q[i]| if \verb|bit == 1|.
+Likewise, \verb|q[i]| is set to \verb|p[i]| if \verb|bit == 1|.
 
 Next, we turn to \verb|pack25519|.
-This function first copies the input value \verb|n| to \verb|t|, and then calls \verb|car25519| on it three times.
+This function first copies the input value \verb|in| to \verb|t|, and then calls \verb|carry25519| on it three times.
 As discussed in \autoref{sec:multiplication}, this ensures that all of the 16 elements of \verb|t| fall within the range $[0,\, 2^{16}-1]$.
 Thus, we have a 256-bit number that is \emph{not quite} reduced modulo $2p$, since it may fall within the entire range $[0,\, 2^{256}-1]$ (i.e.\ it may be slightly greater than $2p$).
 
 To reduce that number $t$ modulo $p$, notice that there are three possibilities: either $0 \le t < p$ (i.e.\ $t$ is already reduced modulo $p$), or $p \le t < 2p$ (i.e.\ we need to subtract $p$ from $t$ to reduce it modulo $p$), or $2p \le t < 2^{256}$ (i.e.\ we need to subtract $2p$ from $t$).
 However, for the function to be constant-time, we cannot simply detect which of these three is the case, and subtract the appropriate multiple of $p$.
 Instead, we have to calculate both $t-p$ and $t-2p$, and then use a constant-time algorithm to choose which of the three values $\{t,\, t-p,\, t-2p\}$ to return.
-This is done by the \verb|FOR(j,2)| loop on lines~37--47.
+This is done by the loop \verb|for (j = 0; j < 2; ++j)| on lines~33--43.
 
 Most of the loop body is taken up by the logic to subtract $p$ from \verb|t|, and write the result to \verb|m|.
-Rather than reusing the earlier \verb|Z| function to subtract, followed by repeated \verb|car25519| calls to handle the carry, this function implements its own carry handling.
+Rather than reusing the earlier \verb|fsub| function to subtract, followed by repeated \verb|carry25519| calls to handle the carry, this function implements its own carry handling.
 
-On line~38, \verb|m[0]=t[0]-0xffed;| subtracts from \verb|t[0]| the least-significant 16 bits of $p$, which are \verb|0xffed|.
-This may result in a negative number, but the subsequent \verb|m[0]&=0xffff;| on line~41 puts it back in the range $[0,\, 2^{16}-1]$, after first taking the carry bit \verb|(m[0]>>16)&1| and subtracting it from \verb|m[1]| (line~40).
+On line~34, \verb|m[0] = t[0] - 0xffed;| subtracts from \verb|t[0]| the least-significant 16 bits of $p$, which are \verb|0xffed|.
+This may result in a negative number, but the subsequent \verb|m[0] &= 0xffff;| on line~37 puts it back in the range $[0,\, 2^{16}-1]$, after first taking the carry bit \verb|(m[0] >> 16) & 1| and subtracting it from \verb|m[1]| (line~36).
 We then repeat this for the next 14 elements of \verb|t|, except that we subtract \verb|0xffff| (the middle bits of $p$) instead of \verb|0xffed|.
-For \verb|t[15]| we subtract \verb|0x7fff| (the most-significant 16 bits of $p$), place the carry bit in variable \verb|b|, and otherwise perform the same steps.
+For \verb|t[15]| we subtract \verb|0x7fff| (the most-significant 16 bits of $p$), place the carry bit in variable \verb|carry|, and otherwise perform the same steps.
 
 The carry bit of the result of subtracting $t-p$ is 1 if the result is negative, and 0 if it is zero or positive.
-If this bit is 1, \verb|1-b| on line~46 equals 0, so \verb|sel25519| does nothing, so the variable \verb|t| is left unchanged and the negative result is discarded.
-If this bit is 0, \verb|1-b| equals 1, so \verb|sel25519| swaps the values of \verb|t| and \verb|m|, i.e.\ it updates \verb|t| to be the non-negative value $t-p$.
+If this bit is 1, \verb|1 - carry| on line~42 equals 0, so \verb|swap25519| does nothing, so the variable \verb|t| is left unchanged and the negative result is discarded.
+If this bit is 0, \verb|1 - carry| equals 1, so \verb|swap25519| swaps the values of \verb|t| and \verb|m|, i.e.\ it updates \verb|t| to be the non-negative value $t-p$.
 Thus, the subtraction of $p$ takes effect only if the result is non-negative.
 After two iterations of this loop, $t$ is guaranteed to be in the range $[0,\, p-1]$.
 
-Finally, on lines~48--51 the value of \verb|t| is copied to the output byte array \verb|o|.
+Finally, on lines~44--47 the value of \verb|t| is copied to the output byte array \verb|out|.
 Each of the 16-bit elements is split into two bytes and assigned to two adjacent elements of the byte array.
-This completes the cycle, starting with input values that arrive as byte arrays, which may be manipulated in \verb|gf| form through field arithmetic operations, with the result eventually converted back to a byte array.
+This completes the cycle, starting with input values that arrive as byte arrays, which may be manipulated in \verb|field_elem| form through field arithmetic operations, with the result eventually converted back to a byte array.
 
 \section{Elliptic curve arithmetic}\label{sec:curve-arithmetic}
 
@@ -676,7 +641,7 @@ Some other curve equations are also used for elliptic curve cryptography, such a
 y^2 = x^3 + Ax + B
 \end{equation}
 but in this document we focus on Montgomery curves.
-% TODO can we use Sage to compute the number of points on the curve?
+% TODO we can use SageMath to compute the number of points on the curve: see comment in section sec:group-construction
 
 \begin{figure}
 % Points for first plot are computed as follows:
@@ -717,14 +682,15 @@ but in this document we focus on Montgomery curves.
 \draw [color=red] (-0.1,0.27479) -- (2.0,0.92549);
 \end{tikzpicture}
 \caption{(a) If we draw a line through two points $P=(x_P,y_P)$ and $Q=(x_Q,y_Q)$ on an elliptic curve, where $x_P \neq x_Q$, then that line intersects the curve again in a third point $R$. (b) Generalising to $P=Q$, we draw a tangent to the curve at $P$, which intersects the curve at $R$.}
+\Description{Plot of the elliptic curve equation over real numbers}
 \label{fig:curve}
 \end{figure}
 
 \subsection{Straight line intersecting the elliptic curve}\label{sec:straight-line}
 
-We say that a point $P = (x_P, y_P)$ lies on the curve if $(x_P, y_P)$ is a solution of equation~\eqref{eq:curve}.
+We say that a point $P = (x, y)$ lies on the curve if $(x, y)$ is a solution of equation~\eqref{eq:curve}.
 \autoref{fig:curve} shows an example of such a curve.
-Notice that the curve has reflection symmetry around the $x$ axis; more formally, if $(x_P, y_P)$ is on the curve then $(x_P, -y_P)$ is also on the curve.
+Notice that the curve has reflection symmetry around the $x$ axis; more formally, if $(x, y)$ is on the curve then $(x, -y)$ is also on the curve.
 This is the case because the variable $y$ appears only in the $y^2$ term in~\eqref{eq:curve}.
 
 For now we will treat the coordinates $x$ and $y$ as real numbers.
@@ -741,37 +707,39 @@ y = \lambda x + c \quad\text{ where the slope is }\quad
 \end{equation}
 
 If $x_P=x_Q$ we distinguish three possibilities: either $y_P=y_Q=0$, or $y_P=y_Q \ne 0$, or $y_P=-y_Q \ne 0$.
-Consider first the case where $y_P=-y_Q \ne 0$, which is shown in \autoref{fig:vertical}: if we draw a straight line through the two points, that line is vertical, and there is no third intersection point.
-We will return to this case, and the $y_P=y_Q=0$ case, in the next section.
+Consider first the case where $y_P=-y_Q \ne 0$, shown in \autoref{fig:vertical}: if we draw a straight line through the two points, that line is vertical, and there is no third intersection point.
+We will return to this case, and the $y_P=y_Q=0$ case, in \autoref{sec:group-construction}.
 
-Next, consider the case where $y_P=y_Q \ne 0$.
+Next, consider the case where $y_P=y_Q \ne 0$, i.e. $P=Q$ and the points are not on the $x$ axis.
 In this case we can still define a straight line through $P$ and $Q$, and we choose the slope of the line such that it is a tangent to the curve (i.e.\ it touches the curve at $P$ without crossing it).
 This is the natural generalisation of the slope $\lambda = (y_Q - y_P)/(x_Q - x_P)$ in the limit as the distance between $P$ and $Q$ tends to zero.
 
-To compute the slope $\lambda$ of this tangent, we can calculate the derivative of the curve equation~\eqref{eq:curve}:
+To compute the slope $\lambda$ of this tangent, we can calculate the derivative of the curve equation~\eqref{eq:curve} using the chain rule:
 \begin{align}
 y^2 &= x^3 + A x^2 + x \quad\iff\quad y = \pm\sqrt{x^3 + A x^2 + x}\\[5pt]
 \lambda = \frac{\mathrm{d}y}{\mathrm{d}x} &= \pm\frac{3x^2 + 2Ax + 1}{2\sqrt{x^3 + Ax^2 + x}}
 = \pm\frac{3x^2 + 2Ax + 1}{2|y|}
 = \frac{3x^2 + 2Ax + 1}{2y} \label{eq:derivative}
 \end{align}
+% TODO this handling of the sign could be a bit more rigorous
 The sign of $\lambda$ in equation~\eqref{eq:derivative} works out correctly for both positive and negative $y$.
 The tangent is then defined by $y = \lambda x + c$ as before, and it exists whenever $y \ne 0$.
-If $y=0$, the tangent is vertical, and we handle this as part of the case $y_P=-y_Q$ in the next section.
+If $y=0$, the tangent is vertical, and we handle this as part of the case $y_P=-y_Q$ in \autoref{sec:group-construction}.
 
 \begin{figure}
 \centering
 % a = -1.9; xp = 0.6; yp = -sqrt(xp*xp*xp + a*xp*xp + xp)
 \begin{tikzpicture}[scale=3.0]
 \draw [->] (-0.1,0) -- (2.1,0) node[right] {$x$};
-\draw [->] (0,-1.6) -- (0,1.6) node[above] {$y$};
-\draw [color=blue] plot[id=pos,domain=0:2,samples=100] function{ sqrt(x**3 - 1.9*x**2 + x)};
-\draw [color=blue] plot[id=neg,domain=0:2,samples=100] function{-sqrt(x**3 - 1.9*x**2 + x)};
+\draw [->] (0,-1.0) -- (0,1.0) node[above] {$y$};
+\draw [color=blue] plot[id=pos,domain=0:1.6,samples=100] function{ sqrt(x**3 - 1.9*x**2 + x)};
+\draw [color=blue] plot[id=neg,domain=0:1.6,samples=100] function{-sqrt(x**3 - 1.9*x**2 + x)};
 \draw [color=red] (0.6,-0.36332) circle [radius=1pt] node[below right,outer sep=5pt] {$P$};
 \draw [color=red] (0.6, 0.36332) circle [radius=1pt] node[above right,outer sep=5pt] {$Q$};
-\draw [color=red] (0.6,-1.6) -- (0.6,1.6);
+\draw [color=red] (0.6,-1.0) -- (0.6,1.0);
 \end{tikzpicture}
 \caption{If $x_P=x_Q$ and $y_P=-y_Q$, the line going through the two points is vertical.}
+\Description{Plot of the elliptic curve equation intersected by a vertical line}
 \label{fig:vertical}
 \end{figure}
 
@@ -788,12 +756,12 @@ Performing the polynomial division:
 \begin{array}{ll}
 & \hspace{60pt} x + A - \lambda^2 + x_P + x_Q \\
 x^2 - (x_P + x_Q)\,x + x_P x_Q \;&
-\overline{\smash{\big)}\; x^3 + (A - \lambda^2)\, x^2 \hspace{50pt} + (1 - 2\lambda c)\, x \hspace{37pt} - c^2} \\
-& \hspace{8pt}\underline{x^3 - (x_P + x_Q)\, x^2 \hspace{40pt} + x_P x_Q x} \\
-& \hspace{30pt}(A - \lambda^2 + x_P + x_Q)\, x^2 + (1 - 2\lambda c - x_P x_Q)\, x - c^2 \\
-& \hspace{30pt}(A - \lambda^2 + x_P + x_Q)\, x^2 - (A - \lambda^2 + x_P + x_Q)\,(x_P + x_Q)\, x \\
-& \hspace{30pt}\underline{\hspace{100pt} +\, (A - \lambda^2 + x_P + x_Q)\,x_P x_Q \hspace{30pt}} \\
-& \hspace{130pt}\dots
+\overline{\smash{\Big)}\; x^3 + (A - \lambda^2)\, x^2 \hspace{42pt} + (1 - 2\lambda c)\, x \hspace{37pt} - c^2} \\
+& \hspace{7pt}\underline{x^3 - (x_P + x_Q)\, x^2 \hspace{35pt} + x_P x_Q x} \\
+& \hspace{26pt}(A - \lambda^2 + x_P + x_Q)\, x^2 + (1 - 2\lambda c - x_P x_Q)\, x - c^2 \\
+& \hspace{26pt}(A - \lambda^2 + x_P + x_Q)\, x^2 - (A - \lambda^2 + x_P + x_Q)\,(x_P + x_Q)\, x \\
+& \hspace{26pt}\underline{\hspace{105pt} +\, (A - \lambda^2 + x_P + x_Q)\,x_P x_Q \hspace{30pt}} \\
+& \hspace{116pt}\dots
 \end{array}
 \end{equation*}
 The polynomial division produces an extremely ugly expression as remainder, but fortunately we do not need to compute it, since we know that it must be zero.
@@ -855,11 +823,11 @@ The point obtained in this way is $P \bullet Q$.
 Using our results~\eqref{eq:xR} and~\eqref{eq:yR} for the coordinates of the third intersection point, along with equations~\eqref{eq:line} and~\eqref{eq:derivative} for the slope $\lambda$, we can now define $P_1 \bullet P_2$ for any two points $P_1$ and $P_2$ on the curve with $P_1 \neq P_2^{-1}$:
 
 \begin{align}
-P_1 \bullet P_2 = (x_1, y_1) \bullet (x_2, y_2) &= (x_3, y_3) \quad\text{where}\nonumber\\[10pt]
+P_1 \bullet P_2 = (x_1, y_1) \bullet (x_2, y_2) &= (x_3, y_3) \quad\text{where}\nonumber\\
 x_3 = \lambda^2 - A - x_1 - x_2 &= \begin{dcases}
 \left(\frac{y_2 - y_1}{x_2 - x_1}\right)^2 - A - x_1 - x_2 & \text{if } x_1 \neq x_2 \\
 \left(\frac{3x_1^2 + 2Ax_1 + 1}{2y_1}\right)^2 - A - 2x_1 & \text{if } x_1 = x_2
-\end{dcases}\label{eq:law-x}\\[15pt]
+\end{dcases}\label{eq:law-x}\\
 y_3 = -(y_1 + \lambda\,(x_3 - x_1)) &= \lambda\,(x_1 - \lambda^2 + A + x_1 + x_2) - y_1 =
 \lambda\,(2x_1 + x_2 + A) - \lambda^3 - y_1 =\label{eq:law-y}\\
 &= \begin{dcases}
@@ -872,8 +840,7 @@ The formulas~\eqref{eq:law-x} and~\eqref{eq:law-y}, along with definitions~\eqre
 These definitions may seem somewhat arbitrary, but $\bullet$ has to be defined this way in order to obtain a group.
 For example, if we did not invert the third intersection point of the line, the resulting operation would not form a group.
 
-To prove that our definitions do indeed form an abelian group, we need to show that the five properties of \autoref{sec:groups} hold.
-Most of these are easy:
+To prove that our definitions form an abelian group, we need to show that the five properties of \autoref{sec:groups} hold:
 \begin{itemize}
 \item The closure property holds by definition, since the point $(x_3, y_3)$ defined by~\eqref{eq:law-x} and~\eqref{eq:law-y} lies on the curve, and the result of the group operation in~\eqref{eq:law-identity} and~\eqref{eq:law-inverse} is also an element of $E$.
 \item The identity element $\infty$ exists and has the required behaviour according to definition~\eqref{eq:law-identity}.
@@ -885,7 +852,6 @@ Finally, if $P \neq \infty$, $Q \neq \infty$ and $P \neq Q^{-1}$, consider the s
 We show that the line through $P$ and $Q$ is the same as the line through $Q$ and $P$, and thus the third intersection point of this line with the curve must be the same.
 If $P=Q$, the two lines are trivially the same according to~\eqref{eq:derivative}.
 If $P \neq Q$, we examine the line equation~\eqref{eq:line}:
-
 \begin{align}
 y = \lambda x + c = \lambda\,(x - x_P) + y_P &= \frac{y_Q - y_P}{x_Q - x_P}\,(x - x_P) + y_P \label{eq:commutative1}\\[5pt]
 & = \frac{-(y_P - y_Q)}{-(x_P - x_Q)}\,(x - x_P) + \frac{y_P\,(x_P - x_Q)}{x_P - x_Q} \nonumber\\[5pt]
@@ -922,7 +888,7 @@ The formulas in the EFD are checked using the SageMath computer algebra system.
 \paragraph{A note on notation.}
 In the literature on elliptic curves, the group operation $\bullet$ is traditionally written as $+$, the inverse of $P$ is written as $-P$, combining two different points $P$ and $Q$ using the group operation $P+Q$ is called \emph{point addition}, and combining a point $P$ with itself $P+P=2P$ is known as \emph{point doubling}.
 On the other hand, in the literature on cryptographic protocols, the group operation is traditionally written as multiplication $\cdot$, the inverse of $P$ is written as $P^{-1}$, and combining a group element with itself is written as $P \cdot P = P^2$.
-In this document we use $\bullet$ as the group operation on \emph{elliptic curve group elements} $E$, in order to avoid confusion with the addition and multiplication of individual \emph{coordinates} (i.e.\ integers modulo $p$), which is used in the formulas above.
+In this document we use $\bullet$ as the group operation on \emph{elliptic curve group elements} $E$, in order to avoid confusion with the addition and multiplication of individual \emph{field elements} (i.e.\ integers modulo $p$), which is used in the formulas above.
 
 \subsection{Elliptic-curve Diffie-Hellman}\label{sec:ecdh}
 
@@ -950,40 +916,37 @@ X25519 chooses $n=251$ (less than 255 because four bits are set to constant valu
 \begin{minted}[linenos]{c}
 typedef unsigned char u8;
 typedef unsigned long long u64;
-extern void randombytes(u8 *,u64);
-static const u8
-  _0[16],
-  _9[32] = {9};
+extern void randombytes(u8 *, u64);
+static const u8 _9[32] = {9};
 
-int crypto_scalarmult_base(u8 *q,const u8 *n)
+void scalarmult_base(u8 *out, const u8 *scalar)
 { 
-  return crypto_scalarmult(q,n,_9);
+  scalarmult(out, scalar, _9);
 }
 
-int crypto_box_keypair(u8 *y,u8 *x)
+void generate_keypair(u8 *pk, u8 *sk)
 {
-  randombytes(x,32);
-  return crypto_scalarmult_base(y,x);
+  randombytes(sk, 32);
+  scalarmult_base(pk, sk);
 }
 
-int crypto_box_beforenm(u8 *k,const u8 *y,const u8 *x)
+void x25519(u8 *out, const u8 *pk, const u8 *sk)
 {
-  u8 s[32];
-  crypto_scalarmult(s,x,y);
-  return crypto_core_hsalsa20(k,_0,s,sigma);
+  scalarmult(out, sk, pk);
 }
 \end{minted}
-\caption{Using the \texttt{crypto{\PYGZus}scalarmult} function to implement Diffie-Hellman in TweetNaCl}\label{code:diffie-hellman}
+\caption{Using the \texttt{scalarmult} function to implement Diffie-Hellman.}\label{code:diffie-hellman}
 \end{listing}
 
-\autoref{code:diffie-hellman} shows how Diffie-Hellman is implemented in TweetNaCl.
-The \verb|crypto_scalarmult(q,n,p)| function takes three arguments: \verb|p| is the input group element $P$, \verb|n| is the scalar exponent, and \verb|q| is a pointer to memory where the output $Q=P^n$ will be written.
-\verb|p|, \verb|n| and \verb|q| are all 255-bit numbers, encoded as arrays of 32 bytes.
-In fact, \verb|p| and \verb|q| are not full group elements, but only the $x$ coordinate of points on the curve; we will see in \autoref{sec:ladder} why we can leave out the $y$ coordinate.
+\autoref{code:diffie-hellman} shows how to implement Diffie-Hellman.
+The \verb|scalarmult(out, scalar, point)| function takes three arguments: \verb|point| is the input group element $P$, \verb|scalar| is the scalar exponent, and \verb|out| is a pointer to memory where the output $P^\mathit{scalar}$ will be written.
+\verb|point|, \verb|scalar| and \verb|out| are all 255-bit numbers, encoded as arrays of 32 bytes.
+In fact, \verb|point| and \verb|out| are not full group elements, but only the $x$ coordinate of points on the curve; we will see in \autoref{sec:ladder} why we can leave out the $y$ coordinate.
+We will see the implementation of \verb|scalarmult| in \autoref{code:scalarmult}.
 
-\verb|crypto_scalarmult_base(q,n)| performs scalar multiplication using a fixed group element \verb|_9|, which is a curve point whose $x$ coordinate equals 9.
+\verb|scalarmult_base(out, scalar)| performs scalar multiplication using a fixed group element \verb|_9|, which is a curve point whose $x$ coordinate equals 9.
 This point is chosen because its order is a large prime, as explained in \autoref{sec:cofactor}.
-The result is again returned in \verb|q|.
+The result is again returned in \verb|out|.
 % TODO can check the order of the point in SageMath as follows:
 % k = GF(2^255 - 19)
 % E = EllipticCurve([k(0), 486662, 0, 1, 0])
@@ -992,21 +955,19 @@ The result is again returned in \verb|q|.
 % base = [k(x), sqrt(k(x^3 + a2*x^2 + x))]
 % order*E(base) # returns (0 : 1 : 0)
 
-\verb|crypto_box_keypair(y,x)| generates a new keypair, where the private key is written to \verb|x| and the public key is written to \verb|y|.
-The function generates the private key by simply drawing 32 bytes (256 bits) from a secure source of uniform random numbers.
-It then performs scalar multiplication of \verb|x| with the fixed base point in \verb|crypto_scalarmult_base|; the result is the public key.
+\verb|generate_keypair(pk, sk)| generates a new keypair, where the private key is written to \verb|sk| and the public key is written to \verb|pk|.
+The private key consists of 32 bytes (256 bits) drawn from a secure source of uniform random numbers.
+The public key is obtained from scalar multiplication of \verb|sk| with the fixed base point in \verb|scalarmult_base|.
 
-\verb|crypto_box_beforenm(k,y,x)| is called by both the sender and the recipient of a message.
-If called by the sender, \verb|y| is the recipient's public key and \verb|x| is the random integer generated by the sender (Alice's $k$ in the example in \autoref{sec:diffie-hellman}).
-If called by the recipient, \verb|y| is the group element sent along with the message ($g^k$ in the example of \autoref{sec:diffie-hellman}) and \verb|x| is the recipient's private key.
-In either case, computing the scalar product of the group element and the secret integer produces the shared secret, which is written to \verb|s|.
-The function then initialises the HSalsa20 stream cipher~\cite{Bernstein:2014ca} using this shared secret, and writes the cipher state to \verb|k|.
-Subsequent function calls use \verb|k| to encrypt or decrypt the actual message.
-We won't discuss this cipher any further in this document, as it is beyond the scope of X25519.
+\verb|x25519(out, pk, sk)| is called by both the sender and the recipient of a message.
+If called by the sender, \verb|pk| is the recipient's public key and \verb|sk| is the random integer generated by the sender (Alice's $k$ in the example in \autoref{sec:diffie-hellman}).
+If called by the recipient, \verb|pk| is the group element sent along with the message ($g^k$ in the example of \autoref{sec:diffie-hellman}) and \verb|sk| is the recipient's private key.
+In either case, computing the scalar product of the group element and the secret integer produces the shared secret, which is written to \verb|out|.
+The shared secret can then be used to initialise a symmetric cipher to encrypt the actual message, but this is beyond the scope of X25519, so we do not discuss it further in this document.
 
 \subsection{The Montgomery ladder}\label{sec:ladder}
 
-The Montgomery ladder~\cite{Bernstein:2017fm,Montgomery:1987fz} is the algorithm used by TweetNaCl to efficiently perform scalar multiplication.
+The Montgomery ladder~\cite{Bernstein:2017fm,Montgomery:1987fz} is the algorithm used by X25519 to efficiently perform scalar multiplication.
 The function $L(P, i)$ takes a group element $P \ne \infty$ and a non-negative integer $i$, and it returns a pair of group elements $(P^i, P^{i+1})$ computed using the group operator $\bullet$:
 \begin{align}
 L(P,\, 0) &= (\infty, P) \label{eq:ladder}\\
@@ -1016,7 +977,7 @@ L(P,\, 2i+1) &= (P_i \bullet P_{i+1},\, P_{i+1} \bullet P_{i+1}) & \text{ where 
 Here $P^0 = \infty$ because $\infty$ is the identity element of the group.
 The second argument is halved (rounding down, i.e.\ shifting right by one bit) on each recursive call, resulting in $\lfloor\log_2 i\rfloor + 1$ recursive calls to compute $L(P, i)$ (i.e.\ one call per bit of $i$).
 In practice, we can use a loop instead of recursion, and in each iteration of the loop we examine one bit of $i$, starting with the most significant bit.
-(\autoref{code:scalarmult} on page~\pageref{code:scalarmult} shows the TweetNaCl implementation of the Montgomery ladder; lines~20 to~44 contain the main loop that iterates over the bits of the integer.)
+(\autoref{code:scalarmult} on page~\pageref{code:scalarmult} shows our implementation of the Montgomery ladder; lines~19 to~43 contain the main loop that iterates over the bits of the integer.)
 At each loop iteration we perform two group operations:
 \begin{itemize}
 \item If the bit is zero (i.e.\ the $2i$ case), we combine $P_i$ with itself to produce $P^i \bullet P^i = P^{2i}$, and we combine $P_i$ with $P_{i+1}$ to produce $P^i \bullet P^{i+1} = P^{2i+1}$.
@@ -1031,7 +992,7 @@ As this is the most time-consuming part of the algorithm, we now examine how to 
 \paragraph{Using projective coordinates.}
 
 First of all, notice that equations~\eqref{eq:law-x} and~\eqref{eq:law-y} contain fractions.
-If we have to perform division on each iteration of the loop, this division operation would become the slowest part of the algorithm.
+If we have to perform division on each iteration of the loop, the multiplicative inverse operation would become the slowest part of the algorithm.
 To save time, we can represent coordinates as fractions: $x = X/Z$ and $y = Y/Z$, where $X$, $Y$ and $Z$ are integers.
 (These are known as \emph{projective coordinates}, whereas the $(x, y)$ coordinates we have been using so far are called \emph{affine coordinates}.)
 At each loop iteration we calculate the numerator and denominator for the coordinates separately, without dividing, and we perform the actual division only once, at the end after we have finished the loop.
@@ -1041,6 +1002,7 @@ At each loop iteration we calculate the numerator and denominator for the coordi
 Let's first derive optimised formulas for combining a group element with itself:
 $P_{2i} = (x_{2i}, y_{2i}) = P_i \bullet P_i = (x, y) \bullet (x, y)$.
 Using the expression in~\eqref{eq:law-x}:
+\begingroup\allowdisplaybreaks
 \begin{align}
 x_{2i} &= \frac{(3x^2 + 2Ax + 1)^2}{4y^2} - A - 2x \nonumber\\[5pt]
 &= \frac{(3x^2 + 2Ax + 1)^2}{4\,(x^3 + Ax^2 + x)} - A - 2x 
@@ -1054,6 +1016,7 @@ x_{2i} &= \frac{(3x^2 + 2Ax + 1)^2}{4y^2} - A - 2x \nonumber\\[5pt]
     \;=\; \frac{X^4 - 2X^2 Z^2 + Z^4}{4XZ\,(X^2 + AX Z + Z^2)}
     \;=\; \frac{(X^2 - Z^2)^2}{4XZ\,(X^2 + AX Z + Z^2)} \nonumber
 \end{align}
+\endgroup
 Thus, we obtain the following projective formulas for point doubling:
 \begin{equation}
 \left(\frac{X_i}{Z_i}, \frac{Y_i}{Z_i}\right) \bullet \left(\frac{X_i}{Z_i}, \frac{Y_i}{Z_i}\right) =
@@ -1070,7 +1033,7 @@ Next, we will derive formulas for point addition that also avoid using any $Y$ c
 
 \paragraph{Projective formulas for point addition.}
 
-We now derive optimised formulas for the group operation
+We now derive formulas for the group operation
 $P_{2i+1} = (x_{2i+1}, y_{2i+1}) = P_i \bullet P_{i+1} = (x_1, y_1) \bullet (x_2, y_2)$.
 We assume that $P_i \ne P_{i+1}$ (because we know that $P_{i+1} = P^{i+1} = P^i \bullet P = P_i \bullet P$ and we are assuming that $P \ne \infty$), and we also assume that $P_i^{-1} \ne P_{i+1}$ (in this case, $P_{2i+1} = \infty$).
 Therefore we can assume $x_1 \neq x_2$.
@@ -1121,7 +1084,7 @@ x_{2i+1} &= \frac{(x_1 x_2 - 1)^2}{x_P\,(x_2 - x_1)^2}
 = \frac{\frac{Z_P}{Z_1^2 Z_2^2} \left(X_1^2 X_2^2 - 2X_1 X_2 Z_1 Z_2 + Z_1^2 Z_2^2\right)}{\frac{X_P}{Z_1^2 Z_2^2} \left(X_2^2 Z_1^2 - 2X_1 X_2 Z_1 Z_2 + X_1^2 Z_2^2\right)} \nonumber\\[5pt]
     &= \frac{Z_P\,(X_1 X_2 - Z_1 Z_2)^2}{X_P\,(X_1 Z_2 - X_2 Z_1)^2} \label{eq:projective-add}
 \end{align}
-In TweetNaCl, the base point $P$ of the scalar multiplication $x_P = X_P/Z_P$ is given as an affine coordinate (i.e.\ not as a fraction), and $P \ne \infty$ so we can assume $Z_P=1$ and $X_P=x_P$.
+In X25519, the base point $P$ of the scalar multiplication $x_P = X_P/Z_P$ is given as an affine coordinate (i.e.\ not as a fraction), and $P \ne \infty$ so we can assume $Z_P=1$ and $X_P=x_P$.
 
 Thus, we can compute one step of the Montgomery ladder using the formulas from~\eqref{eq:projective-double} and~\eqref{eq:projective-add}:
 \begin{align}
@@ -1203,7 +1166,7 @@ Moreover, it is easier to make the algorithm constant-time if every step of the 
 
 \subsection{Optimising the Montgomery ladder step}\label{sec:ladder-optimised}
 
-The formulas~\eqref{eq:ladder-step} are nice and simple, but if we compare them to the TweetNaCl implementation of the Montgomery ladder in \autoref{code:scalarmult}, the two look quite different.
+The formulas~\eqref{eq:ladder-step} are nice and simple, but if we compare them to the implementation of the Montgomery ladder in \autoref{code:scalarmult}, the two look quite different.
 The reason is that the code is based on formulas that have been further optimised.
 
 We have already avoided using division in the Montgomery ladder step by moving to projective coordinates.
@@ -1218,86 +1181,74 @@ If we break down the formulas~\eqref{eq:ladder-step} into one multiplication per
     v_4 &= 4 v_3    &        &                          & v_9 &= X_{i+1} Z_i
 \end{align*}
 Some authors count multiplication by a constant ($4$ or $A$, in the case of $v_4$ and $v_5$) and squaring separately from multiplication.
-However, TweetNaCl uses the same multiplication function in all cases, so for simplicity we count all types of multiplication equally.
+However, our implementation uses the same multiplication function in all cases, so for simplicity we count all types of multiplication equally.
 
 \begin{listing}
 \begin{minted}[linenos]{c}
-#define FOR(i,n) for (i = 0;i < n;++i)
 typedef long long i64;
-typedef i64 gf[16];
-static const gf _121665 = {0xDB41,1},
+typedef i64 field_elem[16];
+static const field_elem _121665 = {0xDB41, 1},
 
-int crypto_scalarmult(u8 *q,const u8 *n,const u8 *p)
+void scalarmult(u8 *out, const u8 *scalar, const u8 *point)
 {
-  u8 z[32];
-  i64 x[80],r,i;
-  gf a,b,c,d,e,f;
-  FOR(i,31) z[i]=n[i];
-  z[31]=(n[31]&127)|64;
-  z[0]&=248;
-  unpack25519(x,p);
-  FOR(i,16) {
-    b[i]=x[i];
-    d[i]=a[i]=c[i]=0;
+  u8 clamped[32];
+  i64 bit, i;
+  field_elem a, b, c, d, e, f, x;
+  for (i = 0; i < 31; ++i) clamped[i] = scalar[i];
+  clamped[0] &= 0xf8;
+  clamped[31] = (clamped[31] & 0x7f) | 0x40;
+  unpack25519(x, point);
+  for (i = 0; i < 16; ++i) {
+    b[i] = x[i];
+    d[i] = a[i] = c[i] = 0;
   }
-  a[0]=d[0]=1;
-  for(i=254;i>=0;--i) {
-    r=(z[i>>3]>>(i&7))&1;
-    sel25519(a,b,r);
-    sel25519(c,d,r);
-    A(e,a,c);
-    Z(a,a,c);
-    A(c,b,d);
-    Z(b,b,d);
-    S(d,e);
-    S(f,a);
-    M(a,c,a);
-    M(c,b,e);
-    A(e,a,c);
-    Z(a,a,c);
-    S(b,a);
-    Z(c,d,f);
-    M(a,c,_121665);
-    A(a,a,d);
-    M(c,c,a);
-    M(a,d,f);
-    M(d,b,x);
-    S(b,e);
-    sel25519(a,b,r);
-    sel25519(c,d,r);
+  a[0] = d[0] = 1;
+  for (i = 254; i >= 0; --i) {
+    bit = (clamped[i >> 3] >> (i & 7)) & 1;
+    swap25519(a, b, bit);
+    swap25519(c, d, bit);
+    fadd(e, a, c);
+    fsub(a, a, c);
+    fadd(c, b, d);
+    fsub(b, b, d);
+    fmul(d, e, e);
+    fmul(f, a, a);
+    fmul(a, c, a);
+    fmul(c, b, e);
+    fadd(e, a, c);
+    fsub(a, a, c);
+    fmul(b, a, a);
+    fsub(c, d, f);
+    fmul(a, c, _121665);
+    fadd(a, a, d);
+    fmul(c, c, a);
+    fmul(a, d, f);
+    fmul(d, b, x);
+    fmul(b, e, e);
+    swap25519(a, b, bit);
+    swap25519(c, d, bit);
   }
-  FOR(i,16) {
-    x[i+16]=a[i];
-    x[i+32]=c[i];
-    x[i+48]=b[i];
-    x[i+64]=d[i];
-  }
-  inv25519(x+32,x+32);
-  M(x+16,x+16,x+32);
-  pack25519(q,x+16);
-  return 0;
+  finverse(c, c);
+  fmul(a, a, c);
+  pack25519(out, a);
 }
 \end{minted}
-\caption{The Montgomery ladder for scalar multiplication in TweetNaCl}\label{code:scalarmult}
+\caption{The Montgomery ladder for scalar multiplication.}\label{code:scalarmult}
 \end{listing}
 
-In contrast to the above 14 multiplications, TweetNaCl uses only 10 multiplications per step.
-In this section we focus on how to derive the algorithm in \autoref{code:scalarmult} from the formulas~\eqref{eq:ladder-step}.
-The main ladder loop in lines~20 to~44 of \autoref{code:scalarmult} performs the following operations, as defined in \autoref{sec:field-arithmetic}:
+In contrast to the above 14 multiplications, the implementation in \autoref{code:scalarmult} uses only 10 multiplications per step.
+In this section we focus on how to derive this algorithm from the formulas~\eqref{eq:ladder-step}.
+The main ladder loop in lines~19 to~43 of \autoref{code:scalarmult} performs the following operations:
 \begin{itemize}
-    \item \verb|r=(z[i>>3]>>(i&7))&1| sets \verb|r| to be the \verb|i|th bit from the little-endian byte array \verb|z| (which was previously set to be a copy of the parameter \verb|n|, with a few tweaks explained later).
-    \item \verb|sel25519(a,b,r)| examines the bit \verb|r|, which is either 0 or 1.
-        If \verb|r == 0|, the function does nothing.
-        If \verb|r == 1|, the function swaps the values in the two variables \verb|a| and \verb|b|.
+    \item \verb|bit = (clamped[i >> 3] >> (i & 7)) & 1| sets \verb|bit| to be the \verb|i|th bit from the little-endian byte array \verb|clamped| (which was previously set to be a copy of the parameter \verb|scalar|, with a few tweaks explained later).
+    \item \verb|swap25519(a, b, bit)| examines \verb|bit|, which is either 0 or 1.
+        If \verb|bit == 0|, the function does nothing.
+        If \verb|bit == 1|, the function swaps the values in the two variables \verb|a| and \verb|b|.
         It does this in constant time, so the ``do nothing'' case takes the same execution time as the swapping case.
-    \item \verb|A(x,y,z)| computes \verb|y| plus \verb|z|, and writes the sum to \verb|x|.
-    \item \verb|Z(x,y,z)| computes \verb|y| minus \verb|z|, and writes the difference to \verb|x|.
-    \item \verb|M(x,y,z)| multiplies \verb|y| and \verb|z|, and writes the product to \verb|x|.
-    \item \verb|S(x,y)| squares the value in \verb|y|, and writes the result to \verb|x|.
-        \verb|S(x,y)| is the same as \verb|M(x,y,y)|.
+    \item \verb|fadd|, \verb|fsub|, and \verb|fmul| perform field element addition, subtraction, and multiplication, as defined in \autoref{sec:field-arithmetic}.
 \end{itemize}
 
-Each iteration of the loop takes as input the values in variables \verb|a|, \verb|b|, \verb|c|, \verb|d|, \verb|x|, and \verb|z|, as well as the constant \verb|_121665 = {0xDB41,1}|, which contains the number \verb|0x1DB41| = 121665 (split into 16-bit chunks as explained in \autoref{sec:field-arithmetic}).
+Each iteration of the loop takes as input the values in variables \verb|a|, \verb|b|, \verb|c|, \verb|d|, \verb|x|, and \verb|clamped|, as well as the constant \verb|_121665 = {0xDB41,1}|, which contains the number \verb|0x1DB41| = 121665 (split into 16-bit chunks using the \verb|field_elem| representation).
 As output it writes new values to the variables \verb|a|, \verb|b|, \verb|c|, and \verb|d|.
 Moreover, it uses \verb|e| and \verb|f| as temporary variables.
 In the code of \autoref{code:scalarmult}, variables are reused.
@@ -1305,63 +1256,63 @@ For better readability, we give a new name to each variable assignment in the fo
 The 18 arithmetic operations in the Montgomery ladder loop (10 multiplications/squarings and 8 additions/subtractions) compute the following expressions:
 
 \begin{align*}
-    & \texttt{A(e,a,c);} & v_1    &= a + c \\
-    & \texttt{Z(a,a,c);} & v_2    &= a - c \\
-    & \texttt{A(c,b,d);} & v_3    &= b + d \\
-    & \texttt{Z(b,b,d);} & v_4    &= b - d \\
-    & \texttt{S(d,e);}   & v_5    &= v_1^2          &&= (a + c)^2 \\
-    & \texttt{S(f,a);}   & v_6    &= v_2^2          &&= (a - c)^2 \\
-    & \texttt{M(a,c,a);} & v_7    &= v_3 \cdot v_2  &&= (b + d)\,(a - c) = ab - bc + ad - cd \\
-    & \texttt{M(c,b,e);} & v_8    &= v_4 \cdot v_1  &&= (b - d)\,(a + c) = ab + bc - ad - cd \\
-    & \texttt{A(e,a,c);} & v_9    &= v_7 + v_8      &&= 2\,(ab - cd) \\
-    & \texttt{Z(a,a,c);} & v_{10} &= v_7 - v_8      &&= 2\,(ad - bc) \\
-    & \texttt{S(b,a);}   & v_{11} &= v_{10}^2       &&= 4\,(ad - bc)^2 \\
-    & \texttt{Z(c,d,f);} & v_{12} &= v_5 - v_6      &&= (a + c)^2 - (a - c)^2 = a^2 + 2ac + c^2 - a^2 + 2ac - c^2 = 4ac \\
-    & \texttt{M(a,c,{\char`_}121665);} & v_{13} &= 121665 \cdot v_{12} &&= 486660\, ac = (A - 2)\,ac \\
-    & \texttt{A(a,a,d);} & v_{14} &= v_{13} + v_5   &&= (A - 2)\,ac + a^2 + 2ac + c^2 = a^2 + Aac + c^2 \\
-    & \texttt{M(c,c,a);} & v_{15} &= v_{12} \cdot v_{14} &&= 4ac\, (a^2 + Aac + c^2) \\
-    & \texttt{M(a,d,f);} & v_{16} &= v_5 \cdot v_6  &&= (a + c)^2\,(a - c)^2 = (a^2 + 2ac + c^2)\,(a^2 - 2ac + c^2) \\
-    &                    &        &                 &&= a^4 + 2a^3 c + a^2 c^2 - 2a^3 c - 4 a^2 c^2 - 2a c^3 + a^2 c^2 + 2a c^3 + c^4 \\
-    &                    &        &                 &&= a^4 - 2a^2 c^2 + c^4 = (a^2 - c^2)^2 \\
-    & \texttt{M(d,b,x);} & v_{17} &= v_{11} \cdot x &&= 4x\,(ad - bc)^2 \\
-    & \texttt{S(b,e);}   & v_{18} &= v_9^2          &&= 4\,(ab - cd)^2
+    & \texttt{fadd(e, a, c);} & v_1    &= a + c \\
+    & \texttt{fsub(a, a, c);} & v_2    &= a - c \\
+    & \texttt{fadd(c, b, d);} & v_3    &= b + d \\
+    & \texttt{fsub(b, b, d);} & v_4    &= b - d \\
+    & \texttt{fmul(d, e, e);} & v_5    &= v_1^2          &&= (a + c)^2 \\
+    & \texttt{fmul(f, a, a);} & v_6    &= v_2^2          &&= (a - c)^2 \\
+    & \texttt{fmul(a, c, a);} & v_7    &= v_3 \cdot v_2  &&= (b + d)\,(a - c) = ab - bc + ad - cd \\
+    & \texttt{fmul(c, b, e);} & v_8    &= v_4 \cdot v_1  &&= (b - d)\,(a + c) = ab + bc - ad - cd \\
+    & \texttt{fadd(e, a, c);} & v_9    &= v_7 + v_8      &&= 2\,(ab - cd) \\
+    & \texttt{fsub(a, a, c);} & v_{10} &= v_7 - v_8      &&= 2\,(ad - bc) \\
+    & \texttt{fmul(b, a, a);} & v_{11} &= v_{10}^2       &&= 4\,(ad - bc)^2 \\
+    & \texttt{fsub(c, d, f);} & v_{12} &= v_5 - v_6      &&= (a + c)^2 - (a - c)^2 = a^2 + 2ac + c^2 - a^2 + 2ac - c^2 = 4ac \\
+    & \texttt{fmul(a, c, {\char`_}121665);} & v_{13} &= 121665 \cdot v_{12} &&= 486660\, ac = (A - 2)\,ac \\
+    & \texttt{fadd(a, a, d);} & v_{14} &= v_{13} + v_5   &&= (A - 2)\,ac + a^2 + 2ac + c^2 = a^2 + Aac + c^2 \\
+    & \texttt{fmul(c, c, a);} & v_{15} &= v_{12} \cdot v_{14} &&= 4ac\, (a^2 + Aac + c^2) \\
+    & \texttt{fmul(a, d, f);} & v_{16} &= v_5 \cdot v_6  &&= (a + c)^2\,(a - c)^2 = (a^2 + 2ac + c^2)\,(a^2 - 2ac + c^2) \\
+    &                       &        &                 &&= a^4 + 2a^3 c + a^2 c^2 - 2a^3 c - 4 a^2 c^2 - 2a c^3 + a^2 c^2 + 2a c^3 + c^4 \\
+    &                       &        &                 &&= a^4 - 2a^2 c^2 + c^4 = (a^2 - c^2)^2 \\
+    & \texttt{fmul(d, b, x);} & v_{17} &= v_{11} \cdot x &&= 4x\,(ad - bc)^2 \\
+    & \texttt{fmul(b, e, e);} & v_{18} &= v_9^2          &&= 4\,(ab - cd)^2
 \end{align*}
 
 Let $a = X_i$, $b = X_{i+1}$, $c = Z_i$, $d = Z_{i+1}$, and $x = x_P$ at the start of a loop iteration.
-Further let the bit \verb|r| be 0, so the \verb|sel25519| operations have no effect.
+Further let \verb|bit| be 0, so the \verb|swap25519| operations have no effect.
 Then the expressions above match the equations \eqref{eq:ladder-step} with $A = 486662$, $v_{16} = X_{2i}$, $v_{18} = 4X_{2i+1}$, $v_{15} = Z_{2i}$, and $v_{17} = 4Z_{2i+1}$.
 The values $(v_{16}, v_{18}, v_{15}, v_{17})$ are written to variables \verb|a|, \verb|b|, \verb|c|, and \verb|d| respectively, forming the input to the next iteration.
 
-If the bit \verb|r| is 1, the values in \verb|a| and \verb|b| are swapped before and after the computation of these expressions, and likewise the values in \verb|c| and \verb|d| are swapped.
+If \verb|bit| is 1, the values in \verb|a| and \verb|b| are swapped before and after the computation of these expressions, and likewise the values in \verb|c| and \verb|d| are swapped.
 Thus, the inputs to the computation are $a = X_{i+1}$, $b = X_i$, $c = Z_{i+1}$, and $d = Z_i$, and the outputs are $v_{16} = X_{2i+2}$, $v_{18} = 4X_{2i+1}$, $v_{15} = Z_{2i+2}$, and $v_{17} = 4Z_{2i+1}$.
 After the final swaps, the variables \verb|a|, \verb|b|, \verb|c|, and \verb|d| contain the values $(v_{18}, v_{16}, v_{17}, v_{15})$.
 
-Thus, each loop iteration maps the input tuple $(X_i, Z_i, X_{i+1}, Z_{i+1})$ to either the output tuple $(X_{2i}, Z_{2i}, 4X_{2i+1}, 4Z_{2i+1})$ or the output tuple $(4X_{2i+1}, 4Z_{2i+1}, X_{2i+2}, Z_{2i+2})$ depending on the value of \verb|r|.
+Thus, each loop iteration maps the input tuple $(X_i, Z_i, X_{i+1}, Z_{i+1})$ to either the output tuple $(X_{2i}, Z_{2i}, 4X_{2i+1}, 4Z_{2i+1})$ or the output tuple $(4X_{2i+1}, 4Z_{2i+1}, X_{2i+2}, Z_{2i+2})$ depending on the value of \verb|bit|.
 This exactly matches the Montgomery ladder step~\eqref{eq:ladder}, except for the additional factor of 4 in $X_{2i+1}$ and $Z_{2i+1}$.
 However, since these two variables are just an expanded representation of the fraction $x_{2i+1} = X_{2i+1}/Z_{2i+1}$, these two factors of 4 cancel out and have no effect on the final result.
 
 \subsection{Clamping}\label{sec:clamping}
 
-We now turn to the first few lines of the \verb|crypto_scalarmult| function.
+We now turn to the first few lines of the \verb|scalarmult| function.
 
-The scalar parameter \verb|n| is assumed to be a uniformly distributed random array of 32 bytes.
-First, \verb|n| is copied to \verb|z|, and then six bits of \verb|z| are set to constant values.
-\verb+z[31]=(n[31]&127)|64+ sets the most significant bit to 0, and the second-most-significant bit to 1.
-\verb+z[0]&=248+ sets the three least significant bits to 0 (because $248 = \verb|0xf8|$).
+The scalar parameter \verb|scalar| is assumed to be a uniformly distributed random array of 32 bytes.
+First, \verb|scalar| is copied to \verb|clamped|, and then five bits of \verb|clamped| are set to constant values.
+\verb+clamped[0] &= 0xf8+ sets the three least significant bits to 0.
+\verb+clamped[31] = (clamped[31] & 0x7f) | 0x40+ sets the most significant bit to 0, and the second-most-significant bit to 1.
 This process is known as \emph{clamping}~\cite{Madden:2020}.
 
-Setting the three least significant bits to 0 ensures that \verb|z| is a multiple of 8.
-By also setting the most significant bit to 0, \verb|z| becomes a number of the form $hk$, where $h=8$ and $k$ is a uniformly distributed random number from the range $[0,\, 2^{252}-1]$.
-As explained in \autoref{sec:cofactor}, making \verb|z| a multiple of the cofactor $h=8$ prevents small subgroup confinement attacks.
+Setting the three least significant bits to 0 ensures that \verb|clamped| is a multiple of 8.
+By also setting the most significant bit to 0, \verb|clamped| becomes a number of the form $hk$, where $h=8$ and $k$ is a uniformly distributed random number from the range $[0,\, 2^{252}-1]$.
+As explained in \autoref{sec:cofactor}, making \verb|clamped| a multiple of the cofactor $h=8$ prevents small subgroup confinement attacks.
 The upper end of the range, $2^{252}-1$, is slightly below $q = 2^{252} + 27742317777372353535851937790883648493$, the order of the base point/generator.
 Choosing $k$ from the range $[0,\, 2^{252}-1]$ is, in practice, equivalent to using the range $[0,\, q-1]$: when using the latter range, the probability of picking a value in the range $[2^{252}, q-1]$ is approximately $10^{-38}$.
 
 The reason for setting the second-most-significant bit to 1 is unrelated to the cofactor: it is instead a precaution to help ensure constant-time implementations.
 If this bit was zero, then an implementation of scalar multiplication could save the first iteration of the Montgomery ladder without affecting the result; an adversary could then use this timing variation to leak the most significant bit of the private key (and perhaps more).
 Setting this bit to one forces the Montgomery ladder to always use the full 255 iterations.
-The TweetNaCl implementation would be constant-time even without setting this bit to 1, but X25519 is defined to always have this bit set as a precaution to protect less careful implementations.
+Our implementation would be constant-time even without setting this bit to 1, but X25519 is defined to always have this bit set as a precaution to protect less careful implementations.
 
-After clamping, \verb|z| is a number of the form $8k$, where $k \in [2^{251},\, 2^{252}-1]$.
+After clamping, \verb|clamped| is a number of the form $8k$, where $k \in [2^{251},\, 2^{252}-1]$.
 Thus, the distribution of group elements produced by X25519 is non-uniform: only about half of the group elements in the subgroup of order $q$ will be generated.
 However, this non-uniformity does not significantly weaken the security of X25519 for Diffie-Hellman purposes (apart from the loss of 1 bit of entropy).
 % TODO: does this mean that the decision Diffie-Hellman problem is technically not hard for X25519?
@@ -1369,8 +1320,8 @@ However, this non-uniformity does not significantly weaken the security of X2551
 
 % https://moderncrypto.org/mail-archive/curves/2017/000860.html
 A final reason for clamping: if $k=0$ or $k$ is a multiple of $q$, then we would expect $P^k = \infty$ for a base point $P$ of order $q$.
-Although the Montgomery ladder correctly handles the point at infinity as an intermediate value, as shown in \autoref{sec:handling-infinity}, \verb|crypto_scalarmult| does not have the ability to return the point at infinity, since the function only returns an $x$ coordinate of a curve point.
-If there was no clamping and a scalar argument of $0$ or $q$ were passed in, \verb|crypto_scalarmult| would return zero, which the caller cannot distinguish from the curve point whose $x$ coordinate is zero.
+Although the Montgomery ladder correctly handles the point at infinity as an intermediate value, as shown in \autoref{sec:handling-infinity}, \verb|scalarmult| does not have the ability to return the point at infinity, since the function only returns an $x$ coordinate of a curve point.
+If there was no clamping and a scalar argument of $0$ or $q$ were passed in, \verb|scalarmult| would return zero, which the caller cannot distinguish from the curve point whose $x$ coordinate is zero.
 Returning an error in this case would make the function non-constant-time, if not done carefully.
 
 By forcing $k$ to be within $0 < k < q$, clamping avoids ever needing to return $\infty$ (except in the case where an adversary provides a group element with small order, as discussed in \autoref{sec:cofactor}, in which case it's fine to return zero).
@@ -1378,23 +1329,16 @@ In the course of Diffie-Hellman with a base point of prime order $q$, $\infty$ w
 
 \subsection{Finishing off scalar multiplication}
 
-At the start of \verb|crypto_scalarmult|, the $x$ coordinate of the base point is passed in as parameter \verb|p|.
-On line~14 this byte array is translated into \verb|gf| representation and copied to \verb|x|.
+At the start of \verb|scalarmult|, the $x$ coordinate of the base point is passed in as parameter \verb|point|.
+On line~13 this byte array is translated into \verb|field_elem| representation and copied to \verb|x|.
 We then initialise $\verb|a|=1$, $\verb|b|=\verb|x|$, $\verb|c|=0$, and $\verb|d|=1$.
 This gives us the starting state of the Montgomery ladder as defined in equation~\eqref{eq:ladder}: $L(P, 0) = (\frac{a}{c}, \frac{b}{d}) = (\infty, P)$.
 
-After the Montgomery ladder is finished, \verb|a| and \verb|c| contain the numerator and denominator of the $x$ coordinate of curve point $P^n$.
-In order to return this value, we must first convert projective coordinates back into affine coordinates by dividing the two, as discussed in \autoref{sec:inverse}.
-We copy \verb|c| to offset 32 of the array \verb|x|, and then use the \verb|inv25519| function to write the multiplicative inverse of \verb|c| to the same location.
-We also copy \verb|a| to offset 16 of the array \verb|x|, and then use the \verb|M| function to multiply \verb|a| and the inverse of \verb|c|.
+After the Montgomery ladder is finished, \verb|a| and \verb|c| contain the numerator and denominator of the $x$ coordinate of curve point $P^\mathit{clamped}$.
+In order to return this value, we must first convert projective coordinates back into affine coordinates by dividing the two, as discussed in \autoref{sec:inverse}: we use the \verb|finverse| function to replace \verb|c| with its multiplicative inverse, and then multiply \verb|a| and \verb|c| using \verb|fmul|.
 
-\paragraph{Open question.}
-Why does \verb|crypto_scalarmult| copy \verb|a|, \verb|b|, \verb|c| and \verb|d| into the array \verb|x| at various offsets?
-Only \verb|a| and \verb|c| actually get used, and nothing ever reads the other offsets, so this seems quite unnecessary.
-\vspace{1pt}
-
-Finally, we use the \verb|pack25519| function, as described in \autoref{sec:pack}, to convert the \verb|gf| representation of the result back into an array of 32 bytes, and we write the result to the output variable \verb|q|.
-This value can now be used as a public key (if \verb|p| was the base point), or as shared secret to initialise a symmetric encryption scheme (if \verb|p| was a public key or the group element received from the other user), as shown in \autoref{sec:ecdh}.
+Finally, we use the \verb|pack25519| function, described in \autoref{sec:pack}, to convert the \verb|field_elem| representation of the result back into an array of 32 bytes, and we write the result to the output variable \verb|out|.
+This value can now be used as a public key (if \verb|point| was the base point), or as shared secret to initialise a symmetric encryption scheme (if \verb|point| was a public key or the group element received from the other user), as shown in \autoref{sec:ecdh}.
 
 \section{Conclusions}
 
