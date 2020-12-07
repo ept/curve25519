@@ -428,15 +428,15 @@ static void fmul(field_elem out, const field_elem a, const field_elem b) /* out 
 We start with the \verb|unpack25519| function on lines~5--10 of \autoref{code:arithmetic}, which converts a number (a $\mathbb{Z}_p$ field element) from the byte array representation to the \verb|field_elem| representation.
 The loop takes two adjacent bytes, \verb|in[2*i]| and \verb|in[2*i + 1]|, and combines them into a 16-bit value by shifting the second byte left by 8~bits and then adding them.
 On line 9, it forces the most significant bit (the 255th bit) to be zero, since our numbers are always less than $2^{255}$.
-Strictly speaking, this function allows the value to be within the range $[0,\, 2^{255} - 1]$, including the values $\{2^{255} - 19,\, \dots,\, 2^{255} - 1\}$ that are not reduced modulo $p$, but this not do any harm, since the functions that take the \verb|field_elem| type as input handle these numbers correctly.
+Strictly speaking, this function allows the value to be within the range $[0,\, 2^{255} - 1]$, including the values $\{2^{255} - 19,\, \dots,\, 2^{255} - 1\}$ that are not reduced modulo $p$, but this does not do any harm, since the functions that take the \verb|field_elem| type as input handle these numbers correctly.
 
 The \verb|fadd| function on lines~23--27 of \autoref{code:arithmetic} adds two field elements in \verb|field_elem| form, and similarly the \verb|fsub| function on lines~29--33 subtracts two field elements.
 These functions are straightforward: they just add or subtract each of the 16 elements separately.
 \begin{align*}
     a + b &= (a_0 2^0 + a_1 2^{16} + a_2 2^{32} + \dots + a_{15} 2^{240}) + (b_0 2^0 + b_1 2^{16} + b_2 2^{32} + \dots + b_{15} 2^{240}) \\
-    &= (a_0 + b_0)\, 2^0 + (a_1 + b_1)\, 2^{16} + (a_2 + b_2)\, 2^{32} + \dots + (a_{15} + b_{16})\, 2^{240} \\[6pt]
+    &= (a_0 + b_0)\, 2^0 + (a_1 + b_1)\, 2^{16} + (a_2 + b_2)\, 2^{32} + \dots + (a_{15} + b_{15})\, 2^{240} \\[6pt]
     a - b &= (a_0 2^0 + a_1 2^{16} + a_2 2^{32} + \dots + a_{15} 2^{240}) - (b_0 2^0 + b_1 2^{16} + b_2 2^{32} + \dots + b_{15} 2^{240}) \\
-    &= (a_0 - b_0)\, 2^0 + (a_1 - b_1)\, 2^{16} + (a_2 - b_2)\, 2^{32} + \dots + (a_{15} - b_{16})\, 2^{240}
+    &= (a_0 - b_0)\, 2^0 + (a_1 - b_1)\, 2^{16} + (a_2 - b_2)\, 2^{32} + \dots + (a_{15} - b_{15})\, 2^{240}
 \end{align*}
 
 Since the \verb|field_elem| type uses 64-bit signed integers for each of the 16 elements, these addition or subtraction operations don't overflow or underflow, and we don't have to worry about propagating carry bits.
@@ -1187,14 +1187,14 @@ However, our implementation uses the same multiplication function in all cases, 
 \begin{minted}[linenos]{c}
 typedef long long i64;
 typedef i64 field_elem[16];
-static const field_elem _121665 = {0xDB41, 1},
+static const field_elem _121665 = {0xDB41, 1};
 
 void scalarmult(u8 *out, const u8 *scalar, const u8 *point)
 {
   u8 clamped[32];
   i64 bit, i;
   field_elem a, b, c, d, e, f, x;
-  for (i = 0; i < 31; ++i) clamped[i] = scalar[i];
+  for (i = 0; i < 32; ++i) clamped[i] = scalar[i];
   clamped[0] &= 0xf8;
   clamped[31] = (clamped[31] & 0x7f) | 0x40;
   unpack25519(x, point);
@@ -1374,7 +1374,7 @@ I believe that by carefully studying existing implementations of cryptographic a
 % How not to do it: https://soatok.blog/2020/07/08/gnu-a-heuristic-for-bad-cryptography/
 
 \begin{acks}
-Thank you to Daniel Hugenroth for feedback on a draft of this document.
+Thank you to Alastair Beresford, Daniel Hugenroth, Markus Kuhn, and Alex Mason for feedback on a draft of this document.
 Martin Kleppmann is supported by a Leverhulme Trust Early Career Fellowship, the Isaac Newton Trust, and Nokia Bell Labs.
 \end{acks}
 
