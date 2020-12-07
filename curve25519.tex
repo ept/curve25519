@@ -68,7 +68,7 @@ The implementation is fast and secure; in particular, it is constant-time to pre
 \section{Introduction}
 
 Curve25519~\cite{Bernstein:2006kw} is a very widely deployed elliptic curve: it is used for Diffie-Hellman key agreement in the X25519 standard~\cite{X25519}, which is a mandatory algorithm in TLS 1.3~\cite{TLS13}, securing a huge number of HTTPS connections in web browsers worldwide.
-It is also used for encryption in WhatsApp~\cite{WhatsAppWhitepaper}, Signal~\cite{Marlinspike:2016}, and various other systems and protocols.
+It is also used for encryption in WhatsApp~\cite{WhatsAppWhitepaper}, Signal~\cite{Marlinspike:2016}, and many other systems and protocols~\cite{UseCurve25519}.
 However, the standard textbooks on elliptic curve cryptography \cite{Blake:1999,Cohen:2006,Hankerson:2004,Koblitz:1994} predate Curve25519, and there are not many good resources that explain how practical implementations of this algorithm actually work.
 Glancing at an implementation of X25519 (see, for example, \autoref{code:scalarmult} on page~\pageref{code:scalarmult}, or Section 5 of the X25519 standard document~\cite{X25519}) reveals mysterious sequences of arithmetic operations with few comments, explanation, or justification.
 
