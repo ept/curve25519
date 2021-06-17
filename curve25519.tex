@@ -79,7 +79,7 @@ No advanced mathematics background is required: all that is needed is some basic
 The implementation we analyse is based on TweetNaCl~\cite{Bernstein:2014ca,TweetNaCl}, a small but practical cryptography library with the same API as NaCl~\cite{NaCl,Bernstein:2012}.
 The name derives from the fact that the implementation fits in 100 tweets of up to 140 characters each.
 TweetNaCl is originally written in C, but its simplicity has made it popular for porting to various other languages, such as JavaScript~\cite{TweetNaCljs}.
-Despite its simplicity, TweetNaCl has strong security properties that we expect of fully-fledged cryptography libraries: in particular, it uses constant-time algorithms to prevent side-channel attacks (that is, it performs no branches or array lookups based on secret values), and it is secure against all known attacks.
+Despite its simplicity, TweetNaCl has strong security properties that we expect of fully-fledged cryptography libraries: in particular, it uses constant-time algorithms to prevent side-channel attacks (that is, it performs no branches or array lookups based on secret values).
 Compared to the original TweetNaCl implementation~\cite{TweetNaCl}, the code in this paper has been slightly reformatted and simplified to improve readability, while leaving functionality, security, and performance unchanged.
 
 TweetNaCl advertises itself as ``auditable''~\cite{Bernstein:2014ca} in the sense that its code is short and simple enough that its correctness can be established through code review.
@@ -214,10 +214,8 @@ The Diffie-Hellman protocol is secure if the following assumptions are true (whe
     The DDH assumption then states that it is not feasible for the adversary to choose the correct answer with probability significantly greater than $\frac{1}{2}$ (a random guess).
 \end{description}
 
-The DDH assumption is stronger than CDH, and CDH is stronger than the hardness of discrete logarithms.
-This is the case because if the adversary can compute discrete logarithms, they can compute $j$ and/or $k$ from $g^j$ and $g^k$, and hence they can compute $g^{jk}$.
-Moreover, if the adversary can compute $g^{jk}$ then they can tell the difference between $g^{jk}$ and $g^i$.
-Thus, DDH implies CDH, and CDH implies hardness of discrete logarithms.
+If the adversary can compute discrete logarithms, they can compute $j$ and/or $k$ from $g^j$ and $g^k$, and hence they can compute $g^{jk}$; therefore, assuming CDH implies assuming that discrete logarithms are hard.
+Moreover, if the adversary can compute $g^{jk}$ then they can tell the difference between $g^{jk}$ and $g^i$, and therefore assuming DDH implies assuming CDH.
 However, the converse is not necessarily true: for example, it might be possible to compute $g^{jk}$ directly from $g^j$ and $g^k$, without first computing $j$ or $k$, although no such algorithm is currently known.
 
 How do the groups from \autoref{sec:groups} fare with respect to these security properties?
@@ -314,7 +312,7 @@ However, this approach is generally not constant-time, whereas the approach usin
 In \autoref{sec:group-construction} we will define a group using the Curve25519 elliptic curve.
 This group has order $hq$, where $h=8$ and $q = 2^{252} + 27742317777372353535851937790883648493$ is a prime number.
 $q$ is only slightly larger than $2^{252}$, as we can see when written in hexadecimal: $q = \verb|0x1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed|$.
-The parameters of Curve25519 are specifically chosen such that the order of the group is the product of a small integer $h$ (which is called the \emph{cofactor}, in this case 8), and a prime that is slightly greater than a large power of 2.
+The parameters of Curve25519 are specifically chosen such that the order of the group is the product of a small integer $h$ (which is called the \emph{cofactor}, in this case 8), and a prime $q$ that is slightly greater than a large power of two~\cite{Bernstein:2006kw}.
 
 Lagrange's theorem states that if a group $E$ has a subgroup $E'$, then the order of $E$ is divisible by the order of $E'$.
 Since the set of powers of a group element generates a subgroup, this means the order of any group element must be a factor of the order of the group.
@@ -432,12 +430,12 @@ Strictly speaking, this function allows the value to be within the range $[0,\, 
 
 The \verb|fadd| function on lines~23--27 of \autoref{code:arithmetic} adds two field elements in \verb|field_elem| form, and similarly the \verb|fsub| function on lines~29--33 subtracts two field elements.
 These functions are straightforward: they just add or subtract each of the 16 elements separately.
-\begin{align*}
-    a + b &= (a_0 2^0 + a_1 2^{16} + a_2 2^{32} + \dots + a_{15} 2^{240}) + (b_0 2^0 + b_1 2^{16} + b_2 2^{32} + \dots + b_{15} 2^{240}) \\
+\begin{align}
+    a + b &= (a_0 2^0 + a_1 2^{16} + a_2 2^{32} + \dots + a_{15} 2^{240}) + (b_0 2^0 + b_1 2^{16} + b_2 2^{32} + \dots + b_{15} 2^{240}) \nonumber\\
     &= (a_0 + b_0)\, 2^0 + (a_1 + b_1)\, 2^{16} + (a_2 + b_2)\, 2^{32} + \dots + (a_{15} + b_{15})\, 2^{240} \\[6pt]
-    a - b &= (a_0 2^0 + a_1 2^{16} + a_2 2^{32} + \dots + a_{15} 2^{240}) - (b_0 2^0 + b_1 2^{16} + b_2 2^{32} + \dots + b_{15} 2^{240}) \\
+    a - b &= (a_0 2^0 + a_1 2^{16} + a_2 2^{32} + \dots + a_{15} 2^{240}) - (b_0 2^0 + b_1 2^{16} + b_2 2^{32} + \dots + b_{15} 2^{240}) \nonumber\\
     &= (a_0 - b_0)\, 2^0 + (a_1 - b_1)\, 2^{16} + (a_2 - b_2)\, 2^{32} + \dots + (a_{15} - b_{15})\, 2^{240}
-\end{align*}
+\end{align}
 
 Since the \verb|field_elem| type uses 64-bit signed integers for each of the 16 elements, these addition or subtraction operations don't overflow or underflow, and we don't have to worry about propagating carry bits.
 However, we have to keep in mind that each of the elements may now be greater than $2^{16}$, or negative.

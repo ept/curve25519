@@ -1,0 +1,151 @@
+\documentclass[10pt]{article}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{spverbatim}
+\sloppy
+
+\usepackage{xr}
+\externaldocument{curve25519}
+
+\newcommand{\todo}[1]{\textcolor{red}{TODO: #1}}
+\newcommand{\authorcomment}[1]{\begin{quote}\textbf{Author comment:} #1\end{quote}}
+
+\begin{document}
+\title{Summary of changes to ``Implementing Curve25519/X25519: A Tutorial on Elliptic Curve Cryptography''}
+\author{Martin Kleppmann}
+\date{}
+\maketitle
+
+I thank the reviewers very much for their comments.
+This document is a response to the reviews, and a summary of the changes I have made in this revision.
+
+\section{Reviewer 1}
+
+\begin{spverbatim}
+Recommendation: Needs Major Revision
+
+Comments:
+This paper presents a tutorial on elliptic curve cryptography. Absolutely it is a topic of interest to researchers in the related areas, however, some improvement before acceptance may be needed. My detailed comments are as follows:
+
+In the third paragraph of section 1, there seems a lack of cause description or explanation for why the sentence " it is secure against all known attacks. " is reasonable.
+\end{spverbatim}
+\authorcomment{Even though I believe this sentence to be true, it is difficult to justify formally (the fact that I do not know of any attack does not prove that it does not exist), so I have removed it.}
+\begin{spverbatim}
+In the second paragraph of section 2.4, the following explanation does not seem quite the same as the meaning of this sentence " The DDH assumption is stronger than CDH, and CDH is stronger than the hardness of discrete logarithms ".
+\end{spverbatim}
+\authorcomment{I have reworded this paragraph to make it clearer.}
+\begin{spverbatim}
+In the fifth paragraph of section 3.1, these two formulas seem to lack the ordinal number.
+\end{spverbatim}
+\authorcomment{Not sure what you mean with ordinal number; do you mean equation number? I have added equation numbers.}
+\begin{spverbatim}
+In figure 1(a), it doesn't look so obvious that R intersects the curve, it's better to lengthen the curve so that it intersects the line more intuitively.
+\end{spverbatim}
+\authorcomment{Oops, this plot somehow got corrupted. I have fixed it now, thanks for pointing it out.}
+\begin{spverbatim}
+In the first paragraph of section 2.7, there seems a lack of cause description or explanation for why the sentence " h (which is called the cofactor, in this case 8). " is reasonable.
+\end{spverbatim}
+\authorcomment{I have added a reference for this.}
+\begin{spverbatim}
+Additional Questions:
+Is the information in the paper sound, factual, and accurate?: Yes
+
+If not, please explain why: 
+
+Rate how well the ideas are presented (very difficult to understand=1), very easy to understand=5): 4
+
+Rate the overall quality of the writing (very poor=1), (excellent=5): 4
+
+Rate the technical quality (very high=5), (high=4), (moderately high=3), (low=2), (very low=1): 4
+
+Rate the relevance to significant areas of research or practice (very high=5), (high=4), (moderately high=3), (low=2), (very low=1): 4
+
+Rate the general level of interest (very high=5), (high=4), (moderately high=3), (low=2), (very low=1): 4
+
+Does this paper cite and use appropriate references?: Yes
+
+If not, what important references are missing?: 
+
+Should anything be deleted from or condensed in the paper?: No
+
+If so, please explain: 
+
+Is the treatment of the subject complete?: Yes
+
+If not, what important details/ideas/analyses are missing?: 
+
+Please help ACM create a more efficient time-to-publication process: Using your best judgment, what amount of copy editing do you think this paper needs?: Moderate
+
+Most ACM journal papers are researcher-oriented. Is this paper of potential interest to developers and engineers?: Yes
+\end{spverbatim}
+
+
+\section{Reviewer 2}
+
+\begin{spverbatim}
+Recommendation: Needs A Major Revision
+
+Comments:
+This article presents a tutorial on elliptic curve cryptography (ECC) focusing on the implementation of X25519 Diffie-Hellman (DH) key agreement protocol. 
+
+The article is well written, however, the material covered in it is too elementary, in my opinion: The basics of group theory, finite field operations, the DH key exchange, and etc are covered in numerous textbooks and early papers on ECC.  It would be useful to focus on the implementation of the specific curve 25519, but such exposition would be mastered by many security engineers. 
+\end{spverbatim}
+\authorcomment{Much of my article focusses specifically on Curve25519.
+The modular reduction algorithm (sections 3.2 and 3.4) is specific to $p = 2^{255} - 19$; the group law (section 4.2) and the Montgomery ladder (sections 4.4, 4.5 and 4.6) are specific to Montgomery curves; and the discussion of clamping (section 4.7) is specific to X25519.
+Other widely-used curves such as the NIST curves or secp256k1 (Bitcoin) are not Montgomery curves, and thus they do not use the Montgomery ladder and require very different implementation methods.
+I therefore strongly disagree with the statement that my paper is not specific to Curve25519.
+
+I agree that sections 2, 3.1, 3.3, 4.1, 4.2, and 4.3 are standard textbook material; I have included these sections in order to make the paper self-contained.
+If the reviewers believe that these sections are not needed due to a lack of novelty, we could leave them out, but in my opinion it is appropriate for a tutorial paper to contain enough background material so that it can be understood by readers who are new to the field without having to also refer to a textbook.
+
+However, sections 3.2, 4.4, 4.5, 4.6, and 4.7 are novel material that I have not seen discussed in any existing publications.
+Implementations of Montgomery curves are very poorly covered in the literature: Cohen et al.~[13] mention the Montgomery ladder only very briefly on one page (not giving nearly enough detail to implement it); and the textbooks by Koblitz~[23], Hankerson et al.~[20], and Blake et al.~[11] do not mention the Montgomery ladder at all.
+The only reasonable reference I found on implementing the Montgomery ladder is a recent book chapter by Bernstein and Lange~[6], but even this article omits several key derivation steps which my paper fills in.}
+\begin{spverbatim}
+I believe that articles of ACM Computing Survey should deal with topics which attract a wide range of audience and "in-depth" analyses on the state-of-the-art topics. - General tutorial on ECC is rather an old topic.
+\end{spverbatim}
+\authorcomment{To my knowledge, my paper is the first one that shows how to derive the code for a constant-time implementation of Curve25519 from the curve equation.
+It is by no means an old topic.
+If I am mistaken and such a treatment already exists in the literature, I ask the reviewer to please name the publication where it appears.}
+\begin{spverbatim}
+Additional Questions:
+Is the information in the paper sound, factual, and accurate?: Yes
+
+If not, please explain why: 
+
+Rate how well the ideas are presented (very difficult to understand=1), very easy to understand=5): 4
+
+Rate the overall quality of the writing (very poor=1), (excellent=5): 4
+
+Rate the technical quality (very high=5), (high=4), (moderately high=3), (low=2), (very low=1): 3
+
+Rate the relevance to significant areas of research or practice (very high=5), (high=4), (moderately high=3), (low=2), (very low=1): 1
+
+Rate the general level of interest (very high=5), (high=4), (moderately high=3), (low=2), (very low=1): 2
+\end{spverbatim}
+\authorcomment{I am puzzled about the low ratings regarding relevance to research or practice, and level of interest.
+Curve25519/X25519 is a mandatory algorithm in TLS 1.3, which is used to secure a large fraction of Internet traffic, giving it obviously large practical importance.
+Timing side-channel attacks on cryptographic protocols are common, and my paper serves as a case study on how to implement constant-time cryptographic algorithms that are immune to such attacks.
+These implementation techniques are hardly covered in textbooks and are currently only known to a small number of engineers who maintain cryptographic libraries.
+I believe that making these techniques more widely known and more widely adopted is of great interest to both researchers and practitioners.}
+\begin{spverbatim}
+Does this paper cite and use appropriate references?: Yes
+
+If not, what important references are missing?: 
+
+Should anything be deleted from or condensed in the paper?: Yes
+
+If so, please explain: 
+
+\end{spverbatim}
+\authorcomment{Please specify what should be deleted or condensed.}
+\begin{spverbatim}
+Is the treatment of the subject complete?: Yes
+
+If not, what important details/ideas/analyses are missing?: 
+
+Please help ACM create a more efficient time-to-publication process: Using your best judgment, what amount of copy editing do you think this paper needs?: Heavy
+
+Most ACM journal papers are researcher-oriented. Is this paper of potential interest to developers and engineers?: No
+\end{spverbatim}
+
+\end{document}
