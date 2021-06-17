@@ -967,7 +967,7 @@ The shared secret can then be used to initialise a symmetric cipher to encrypt t
 
 \subsection{The Montgomery ladder}\label{sec:ladder}
 
-The Montgomery ladder~\cite{Bernstein:2017fm,Montgomery:1987fz} is the algorithm used by X25519 to efficiently perform scalar multiplication.
+The Montgomery ladder~\cite{Bernstein:2017fm,Costello:2018,Montgomery:1987fz} is the algorithm used by X25519 to efficiently perform scalar multiplication.
 The function $L(P, i)$ takes a group element $P \ne \infty$ and a non-negative integer $i$, and it returns a pair of group elements $(P^i, P^{i+1})$ computed using the group operator $\bullet$:
 \begin{align}
 L(P,\, 0) &= (\infty, P) \label{eq:ladder}\\
@@ -1351,8 +1351,6 @@ The Ristretto255 prime-order group~\cite{Ristretto255}, which eliminates the cof
 I believe that by carefully studying existing implementations of cryptographic algorithms, and by analysing in detail what makes them correct, we can gain a deeper understanding of cryptography in general and improve the quality of implementations of cryptographic protocols.
 
 % Twist security https://safecurves.cr.yp.to/twist.html
-
-% Montgomery curves and their arithmetic https://eprint.iacr.org/2017/212.pdf
 
 % Ed25519 clamping https://twitter.com/FiloSottile/status/1403651113665110016
 % Discussion of clamping https://twitter.com/Sc00bzT/status/1270331532490747904
