@@ -40,7 +40,7 @@
   \PYG{k}{for} \PYG{p}{(}\PYG{n}{i} \PYG{o}{=} \PYG{l+m+mi}{0}\PYG{p}{;} \PYG{n}{i} \PYG{o}{\PYGZlt{}} \PYG{l+m+mi}{16}\PYG{p}{;} \PYG{o}{++}\PYG{n}{i}\PYG{p}{)} \PYG{p}{\PYGZob{}}
     \PYG{k}{for} \PYG{p}{(}\PYG{n}{j} \PYG{o}{=} \PYG{l+m+mi}{0}\PYG{p}{;} \PYG{n}{j} \PYG{o}{\PYGZlt{}} \PYG{l+m+mi}{16}\PYG{p}{;} \PYG{o}{++}\PYG{n}{j}\PYG{p}{)} \PYG{n}{product}\PYG{p}{[}\PYG{n}{i}\PYG{o}{+}\PYG{n}{j}\PYG{p}{]} \PYG{o}{+=} \PYG{n}{a}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{*} \PYG{n}{b}\PYG{p}{[}\PYG{n}{j}\PYG{p}{];}
   \PYG{p}{\PYGZcb{}}
-  \PYG{k}{for} \PYG{p}{(}\PYG{n}{i} \PYG{o}{=} \PYG{l+m+mi}{0}\PYG{p}{;} \PYG{n}{i} \PYG{o}{\PYGZlt{}} \PYG{l+m+mi}{15}\PYG{p}{;} \PYG{o}{++}\PYG{n}{i}\PYG{p}{)} \PYG{n}{product}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{+=} \PYG{l+m+mi}{38} \PYG{o}{*} \PYG{n}{product}\PYG{p}{[}\PYG{n}{i}\PYG{o}{+}\PYG{l+m+mi}{16}\PYG{p}{];}
+  \PYG{k}{for} \PYG{p}{(}\PYG{n}{i} \PYG{o}{=} \PYG{l+m+mi}{0}\PYG{p}{;} \PYG{n}{i} \PYG{o}{\PYGZlt{}} \PYG{l+m+mi}{15}\PYG{p}{;} \PYG{o}{++}\PYG{n}{i}\PYG{p}{)} \PYG{n}{product}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{+=} \PYG{l+m+mi}{38} \PYG{o}{*} \PYG{n}{product}\PYG{p}{[}\PYG{n}{i} \PYG{o}{+} \PYG{l+m+mi}{16}\PYG{p}{];}
   \PYG{k}{for} \PYG{p}{(}\PYG{n}{i} \PYG{o}{=} \PYG{l+m+mi}{0}\PYG{p}{;} \PYG{n}{i} \PYG{o}{\PYGZlt{}} \PYG{l+m+mi}{16}\PYG{p}{;} \PYG{o}{++}\PYG{n}{i}\PYG{p}{)} \PYG{n}{out}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{=} \PYG{n}{product}\PYG{p}{[}\PYG{n}{i}\PYG{p}{];}
   \PYG{n}{carry25519}\PYG{p}{(}\PYG{n}{out}\PYG{p}{);}
   \PYG{n}{carry25519}\PYG{p}{(}\PYG{n}{out}\PYG{p}{);}

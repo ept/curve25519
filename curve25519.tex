@@ -80,7 +80,7 @@ The implementation we analyse is based on TweetNaCl~\cite{Bernstein:2014ca,Tweet
 The name derives from the fact that the implementation fits in 100 tweets of up to 140 characters each.
 TweetNaCl is originally written in C, but its simplicity has made it popular for porting to various other languages, such as JavaScript~\cite{TweetNaCljs}.
 Despite its simplicity, TweetNaCl has strong security properties that we expect of fully-fledged cryptography libraries: in particular, it uses constant-time algorithms to prevent side-channel attacks (that is, it performs no branches or array lookups based on secret values).
-Compared to the original TweetNaCl implementation~\cite{TweetNaCl}, the code in this paper has been slightly reformatted and simplified to improve readability, while leaving functionality, security, and performance unchanged.
+Compared to the original TweetNaCl implementation~\cite{TweetNaCl}, the code in this paper has been slightly reformatted and simplified to improve readability, while leaving functionality, security, and performance unchanged (the changes are detailed in \autoref{sec:appendix}).
 
 TweetNaCl advertises itself as ``auditable''~\cite{Bernstein:2014ca} in the sense that its code is short and simple enough that its correctness can be established through code review.
 However, to my knowledge, no detail of any such audit has been published.
@@ -414,7 +414,7 @@ static void fmul(field_elem out, const field_elem a, const field_elem b) /* out 
   for (i = 0; i < 16; ++i) {
     for (j = 0; j < 16; ++j) product[i+j] += a[i] * b[j];
   }
-  for (i = 0; i < 15; ++i) product[i] += 38 * product[i+16];
+  for (i = 0; i < 15; ++i) product[i] += 38 * product[i + 16];
   for (i = 0; i < 16; ++i) out[i] = product[i];
   carry25519(out);
   carry25519(out);
@@ -519,8 +519,8 @@ static void finverse(field_elem out, const field_elem in)
   int i;
   for (i = 0; i < 16; ++i) c[i] = in[i];
   for (i = 253; i >= 0; i--) {
-    fmul(c,c,c);
-    if (i != 2 && i != 4) fmul(c,c,in);
+    fmul(c, c, c);
+    if (i != 2 && i != 4) fmul(c, c, in);
   }
   for (i = 0; i < 16; ++i) out[i] = c[i];
 }
@@ -544,8 +544,8 @@ static void pack25519(u8 *out, const field_elem in)
   for (j = 0; j < 2; ++j) {
     m[0] = t[0] - 0xffed;
     for(i = 1; i < 15; i++) {
-      m[i] = t[i] - 0xffff - ((m[i-1] >> 16) & 1);
-      m[i-1] &= 0xffff;
+      m[i] = t[i] - 0xffff - ((m[i - 1] >> 16) & 1);
+      m[i - 1] &= 0xffff;
     }
     m[15] = t[15] - 0x7fff - ((m[14] >> 16) & 1);
     carry = (m[15] >> 16) & 1;
@@ -1428,5 +1428,59 @@ Martin Kleppmann is supported by a Leverhulme Trust Early Career Fellowship, the
 
 \bibliographystyle{ACM-Reference-Format}
 \bibliography{references}
+
+\appendix
+\section{Differences to the Original TweetNaCl}\label{sec:appendix}
+
+The code listings in this paper are based on version 20140427 of Bernstein et al.'s TweetNaCl implementation~\cite{TweetNaCl}.
+I have made a number of changes in the interest of readability; these changes do not affect the functionality or the constant-time property of the code.
+This appendix details those changes.
+
+\begin{itemize}
+    \item All functions that are not part of the X25519 implementation are omitted.
+    \item All uses of the \verb|FOR| and \verb|sv| macros are replaced with their definitions.
+    \item The \verb|gf| type definition is renamed to \verb|field_elem|.
+    \item I added whitespace around operators to improve readability.
+    \item In the \verb|unpack25519| function the parameters \verb|o| and \verb|n| are renamed to \verb|out| and \verb|in|, respectively.
+    \item The \verb|car25519| function is renamed to \verb|carry25519|, its parameter \verb|o| is renamed to \verb|elem|, and its local variable \verb|c| is renamed to \verb|carry|.
+        Its loop body originally read:
+\begin{minted}{c}
+    o[i]+=(1LL<<16);
+    c=o[i]>>16;
+    o[(i+1)*(i<15)]+=c-1+37*(c-1)*(i==15);
+    o[i]-=c<<16;
+\end{minted}
+        The addition of $2^{16}$ to \verb|o[i]| and the subsequent subtraction of $1$ from \verb|o[i+1]| cancel out and serve no apparent purpose, so I removed them.
+        I hypothesise that perhaps the addition of $2^{16}$ was supposed to ensure that \verb|o[i]| is non-negative, but this is not true because it is possible to have $\texttt{o[i]} < -2^{16}$, and it is not necessary because the code handles negative values correctly anyway.
+        Dan Bernstein and Tanja Lange did not respond to my emails requesting an explanation of these lines of code.
+        My simplified version of the loop body also replaces the hard-to-read \verb|(i+1)*(i<15)| array subscript with a simple if statement:
+\begin{minted}{c}
+    carry = elem[i] >> 16;
+    elem[i] -= carry << 16;
+    if (i < 15) elem[i + 1] += carry; else elem[0] += 38 * carry;
+\end{minted}
+        It is safe to perform a conditional branch on the value of \verb|i| since it is not a secret (it always ranges from 0 to 15).
+    \item The \verb|A| function is renamed to \verb|fadd|, and its parameter \verb|o| is renamed to \verb|out|.
+    \item The \verb|Z| function is renamed to \verb|fsub|, and its parameter \verb|o| is renamed to \verb|out|.
+    \item The \verb|M| function is renamed to \verb|fmul|, its parameter \verb|o| is renamed to \verb|out|, and its local variable \verb|t| is renamed to \verb|product|.
+    \item I removed the \verb|S| (square) function, which only called \verb|M| anyway, and replaced it with calls to \verb|fmul|.
+    \item The \verb|inv25519| function is renamed to \verb|finverse|, its parameters \verb|o| and \verb|i| are renamed to \verb|out| and \verb|in| respectively, and its local variable \verb|a| is renamed to \verb|i| (since it is used as loop counter).
+    \item The \verb|sel25519| function is renamed to \verb|swap25519|, and its parameter \verb|b| is renamed to \verb|bit|.
+    \item In the \verb|pack25519| function the parameters \verb|o| and \verb|n| are renamed to \verb|out| and \verb|in| respectively, and the local variable \verb|b| is renamed to \verb|carry|.
+    \item The \verb|crypto_scalarmult_base| function is renamed to \verb|scalarmult_base|, and its parameters \verb|q| and \verb|n| are renamed to \verb|out| and \verb|scalar|, respectively.
+    \item The \verb|crypto_box_keypair| function is renamed to \verb|generate_keypair|, and its parameters \verb|y| and \verb|x| are renamed to \verb|pk| and \verb|sk|, respectively.
+    \item The \verb|x25519| function is added as an alias of \verb|scalarmult|.
+    \item The \verb|crypto_scalarmult| function is renamed to \verb|scalarmult|, its parameters \verb|q|, \verb|n| and \verb|p| are renamed to \verb|out|, \verb|scalar| and \verb|point|, respectively, and its local variables \verb|z| and \verb|r| are renamed to \verb|clamped| and \verb|bit|, respectively.
+        The first loop's upper bound is changed from 31 to 32 and the following two lines (which perform the clamping) are slightly refactored to make the code clearer without changing its behaviour.
+        I have changed the variable \verb|x|, which was originally an 80-element array of \verb|i64|, to be of type \verb|field_elem| (i.e.\ a 16-element array of \verb|i64|) instead.
+        The first 16 elements of \verb|x| have the same function as they did originally (namely, the internal representation of the $x$ coordinate of the input point).
+        The original code, after completing the Montgomery ladder, copies the value of local variable \verb|a| to indexes $16 \dots 31$ of \verb|x|, \verb|c| to indexes $32 \dots 47$, \verb|b| to indexes $48 \dots 63$, and \verb|d| to indexes $64 \dots 79$, and then performs the last three function calls (the inversion of \verb|c|, the multiplication of \verb|a| and \verb|c|, and the \verb|pack25519| of the result) on offsets of the variable \verb|x|.
+        The purpose of copying \verb|a|, \verb|b|, \verb|c| and \verb|d| to \verb|x| is unclear, since nothing ever uses the fact that these values have been copied into one contiguous array.
+        Perhaps it is a remnant of earlier debugging logic?
+        Dan Bernstein and Tanja Lange did not respond to my emails requesting an explanation of why this is happening.
+        I therefore removed the copying into \verb|x| and changed the last three function calls of \verb|scalarmult| to operate directly on \verb|a| and \verb|c| instead.
+\end{itemize}
+
+I have run the modified code with the test vectors provided as part of the NaCl package~\cite{NaCl}, and checked that they compute the same result.
 
 \end{document}

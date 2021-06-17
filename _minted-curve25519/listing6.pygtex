@@ -1,0 +1,5 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+    \PYG{n}{carry} \PYG{o}{=} \PYG{n}{elem}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{\PYGZgt{}\PYGZgt{}} \PYG{l+m+mi}{16}\PYG{p}{;}
+    \PYG{n}{elem}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{\PYGZhy{}=} \PYG{n}{carry} \PYG{o}{\PYGZlt{}\PYGZlt{}} \PYG{l+m+mi}{16}\PYG{p}{;}
+    \PYG{k}{if} \PYG{p}{(}\PYG{n}{i} \PYG{o}{\PYGZlt{}} \PYG{l+m+mi}{15}\PYG{p}{)} \PYG{n}{elem}\PYG{p}{[}\PYG{n}{i} \PYG{o}{+} \PYG{l+m+mi}{1}\PYG{p}{]} \PYG{o}{+=} \PYG{n}{carry}\PYG{p}{;} \PYG{k}{else} \PYG{n}{elem}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]} \PYG{o}{+=} \PYG{l+m+mi}{38} \PYG{o}{*} \PYG{n}{carry}\PYG{p}{;}
+\end{Verbatim}
