@@ -1354,6 +1354,7 @@ I believe that by carefully studying existing implementations of cryptographic a
 
 % Montgomery curves and their arithmetic https://eprint.iacr.org/2017/212.pdf
 
+% Ed25519 clamping https://twitter.com/FiloSottile/status/1403651113665110016
 % Discussion of clamping https://twitter.com/Sc00bzT/status/1270331532490747904
 % More on clamping https://www.jcraige.com/an-explainer-on-ed25519-clamping
 
@@ -1363,13 +1364,64 @@ I believe that by carefully studying existing implementations of cryptographic a
 % uses the word "limbs" to refer to what I call "elements"
 % curve25519 paper calls them "coefficients", and 2^16 the "radix"
 
+% Synthesising formally verified field arithmetic:
+% https://twitter.com/FiloSottile/status/1388374868131987459
+% https://github.com/mit-plv/fiat-crypto
+% http://adam.chlipala.net/papers/FiatCryptoSP19/FiatCryptoSP19.pdf
+
+% The dangers of not using constant-time arithmetic: https://eprint.iacr.org/2017/806.pdf
+
+% Constant-time Euclid's algorithm: https://gcd.cr.yp.to/
+% https://twitter.com/pwuille/status/1360347812588707840
+% https://eprint.iacr.org/2021/549
+
+% Optimised addition chains for field inversion based on Fermat's little theorem:
+% https://github.com/mmcloughlin/addchain
+
 % Other things to look at: NIST P-256 curve; Ed25519; secp256k1 ECDSA (bitcoin); petlib https://petlib.readthedocs.io/en/latest/
+% edwards25519 decoding formulas https://buttondown.email/cryptography-dispatches/archive/cryptography-dispatches-re-deriving-the/
+% EC-KCDSA https://github.com/trevorbernard/curve25519-java/blob/master/src/main/java/djb/Curve25519.java
 % Ristretto255 https://ietf.org/id/draft-irtf-cfrg-ristretto255-00.html
+
+% Prefer "machine in the middle" or "person in the middle" over "man in the middle"
+
 % Threshold signatures
-% PAKE, such as https://github.com/jedisct1/cpace or socialist millionaire protocol
-% Zero-knowledge proofs
+% https://eprint.iacr.org/2020/1390
+% https://eprint.iacr.org/2018/987
+% FROST: https://eprint.iacr.org/2020/852 https://twitter.com/veorq/status/1370292261720842240
+
+% PAKE, such as https://github.com/jedisct1/cpace or socialist millionaire protocol or J-PAKE
+% https://en.wikipedia.org/wiki/Password_Authenticated_Key_Exchange_by_Juggling
+% https://tools.ietf.org/id/draft-irtf-cfrg-spake2-10.html
+% https://mailarchive.ietf.org/arch/msg/cfrg/HssFKRoUdM2kyVt4T9j_KPZqAmE/
+% https://datatracker.ietf.org/meeting/104/materials/slides-104-cfrg-pake-selection-01
+% Attack on SPAKE2 https://redrocket.club/posts/croc/
+% https://emilymstark.com/2021/02/01/padding-partitioning-oracles-and-another-hot-take-on-pakes.html
+
+% Anonymous credentials https://eprint.iacr.org/2019/460.pdf
+
 % Elligator
+% Blinding (as used e.g. in Sphinx)
 % If this is going to be a textbook, add more examples and exercises
+
+% Zero-knowledge proofs
+% ZCash specification https://zips.z.cash/protocol/protocol.pdf
+% Notes on zero-knowledge proofs https://www.notion.so/martinkl/Zero-knowledge-proofs-SNARKs-zkSNARKs-927756c7122948439079f4d41794104f
+% Bulletproofs ZKP https://crypto.stanford.edu/bulletproofs/
+% Supersonic ZKP https://web.archive.org/web/20200920083031/http://eprint.iacr.org/2019/1229
+% https://github.com/arkworks-rs/snark
+% https://twitter.com/JoshuaWBaron/status/1384217010419101697
+
+% Pairing
+% https://crypto.stanford.edu/pbc/notes/elliptic/
+% https://crypto.stanford.edu/pbc/notes/ep/
+% https://crypto.stanford.edu/pbc/
+% https://tools.ietf.org/html/draft-irtf-cfrg-bls-signature-04
+% Bugs in pairing-based BLS signatures https://eprint.iacr.org/2021/323.pdf
+
+% Assembly: try this? https://github.com/mmcloughlin/avo
+
+% Elliptic curve cryptography in practice https://eprint.iacr.org/2013/734.pdf
 
 % How not to do it: https://soatok.blog/2020/07/08/gnu-a-heuristic-for-bad-cryptography/
 
