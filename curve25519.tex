@@ -61,7 +61,7 @@ The implementation is fast and secure; in particular, it is constant-time to pre
 \ccsdesc[500]{Security and privacy~Public key encryption}
 \ccsdesc[500]{Theory of computation~Cryptographic primitives}
 
-\keywords{elliptic curve cryptography, Diffie-Hellman key agreement, constant-time algorithms, resistance to side-channel attacks}
+\keywords{elliptic curve cryptography, Diffie-Hellman key agreement, implementation of cryptographic algorithms, constant-time algorithms, resistance to side-channel attacks}
 \setcopyright{none}
 \maketitle
 
@@ -88,7 +88,7 @@ The JavaScript port has indeed been professionally audited, but the report~\cite
 Previous analyses of NaCl/TweetNaCl~\cite{Bernstein:2009,Janssen:2014} give justification for some of the algorithms, but also leave many details unexplained.
 This document partially fills that gap: we discuss only X25519, but not the other algorithms that appear in TweetNaCl, such as the Salsa20 stream cipher, the Poly1305 authenticator, or the Ed25519 signature scheme.
 
-Unlike HACL*~\cite{HACLStar}, which contains a formally verified implementation of X25519~\cite{Zinzindohoue:2017fc}, the goal of this document is not so much to verify that TweetNaCl is correct, but rather to learn how elliptic curve cryptography works by carefully studying one particular algorithm and its implementation.
+Unlike HACL*~\cite{HACLStar}, which contains a formally verified implementation of X25519~\cite{Zinzindohoue:2017fc}, the goal of this document is not so much to verify that TweetNaCl is correct, but rather to teach how secure implementations of elliptic curve cryptography work by carefully studying one particular algorithm and its implementation.
 
 \section{Background}\label{sec:background}
 
@@ -1423,7 +1423,7 @@ I believe that by carefully studying existing implementations of cryptographic a
 
 \begin{acks}
 Thank you to Alastair Beresford, Daniel Hugenroth, Markus Kuhn, and Alex Mason for feedback on a draft of this document.
-Martin Kleppmann is supported by a Leverhulme Trust Early Career Fellowship, the Isaac Newton Trust, and Nokia Bell Labs.
+I am grateful for financial support from a Leverhulme Trust Early Career Fellowship, the Isaac Newton Trust, Nokia Bell Labs, and crowdfunding supporters including Ably, Adri{\` a} Arcarons, Chet Corcos, Macrometa, Mintter, David Pollak, RelationalAI, SoftwareMill, Talent Formation Network, and Adam Wiggins.
 \end{acks}
 
 \bibliographystyle{ACM-Reference-Format}
