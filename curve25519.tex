@@ -36,10 +36,9 @@
 \begin{abstract}
 Many textbooks cover the concepts behind Elliptic Curve Cryptography, but few explain how to go from the equations to a working, fast, and secure implementation.
 On the other hand, while the code of many cryptographic libraries is available as open source, it can be rather opaque to the untrained eye, and it is rarely accompanied by detailed documentation explaining how the code came about and why it is correct.
-
 This tutorial bridges the gap between the mathematics and implementation of elliptic curve cryptography.
-It is written for readers who are new to cryptography, and it assumes no more mathematical background than most undergraduate computer science courses.
-Starting from first principles, this document shows how to derive every line of code in an implementation of the X25519 Diffie-Hellman key agreement scheme, based on the Curve25519 elliptic curve.
+It is written for readers who are new to cryptography, and it assumes very little mathematical background.
+Starting from first principles, this paper shows how to derive every line of code in an implementation of the X25519 Diffie-Hellman key agreement scheme, based on the Curve25519 elliptic curve.
 The implementation is fast and secure; in particular, it is constant-time to prevent side-channel attacks.
 \end{abstract}
 
@@ -72,8 +71,8 @@ It is also used for encryption in WhatsApp~\cite{WhatsAppWhitepaper}, Signal~\ci
 However, the standard textbooks on elliptic curve cryptography \cite{Blake:1999,Cohen:2006,Hankerson:2004,Koblitz:1994} predate Curve25519, and there are not many good resources that explain how practical implementations of this algorithm actually work.
 Glancing at an implementation of X25519 (see, for example, \autoref{code:scalarmult} on page~\pageref{code:scalarmult}, or Section 5 of the X25519 standard document~\cite{X25519}) reveals mysterious sequences of arithmetic operations with few comments, explanation, or justification.
 
-The goal of this document is to provide an introduction to elliptic curve cryptography by means of carefully analysing every line of code of one particular implementation of X25519.
-We show how the algorithm is derived from basic principles, walking through the algebraic derivations step by step, and justifying its correctness.
+The goal of this tutorial is to provide an introduction to elliptic curve cryptography by means of carefully analysing every line of code of one particular implementation of X25519.
+We show how the algorithm is derived from basic principles, walking through the algebraic derivations step by step, and justifying their correctness.
 No advanced mathematics background is required: all that is needed is some basic modular arithmetic, which should be covered in most undergraduate computer science courses.
 
 The implementation we analyse is based on TweetNaCl~\cite{Bernstein:2014ca,TweetNaCl}, a small but practical cryptography library with the same API as NaCl~\cite{NaCl,Bernstein:2012}.
@@ -86,9 +85,9 @@ TweetNaCl advertises itself as ``auditable''~\cite{Bernstein:2014ca} in the sens
 However, to my knowledge, no detail of any such audit has been published.
 The JavaScript port has indeed been professionally audited, but the report~\cite{TweetNaClAudit} does not go into any technical detail.
 Previous analyses of NaCl/TweetNaCl~\cite{Bernstein:2009,Janssen:2014} give justification for some of the algorithms, but also leave many details unexplained.
-This document partially fills that gap: we discuss only X25519, but not the other algorithms that appear in TweetNaCl, such as the Salsa20 stream cipher, the Poly1305 authenticator, or the Ed25519 signature scheme.
+This paper partially fills that gap: we discuss only X25519, but not the other algorithms that appear in TweetNaCl, such as the Salsa20 stream cipher, the Poly1305 authenticator, or the Ed25519 signature scheme.
 
-Unlike HACL*~\cite{HACLStar}, which contains a formally verified implementation of X25519~\cite{Zinzindohoue:2017fc}, the goal of this document is not so much to verify that TweetNaCl is correct, but rather to teach how secure implementations of elliptic curve cryptography work by carefully studying one particular algorithm and its implementation.
+Unlike HACL*~\cite{HACLStar}, which contains a formally verified implementation of X25519~\cite{Zinzindohoue:2017fc}, the goal of this paper is not so much to verify that TweetNaCl is correct, but rather to teach how secure implementations of elliptic curve cryptography work by carefully studying one particular algorithm and its implementation.
 
 \section{Background}\label{sec:background}
 
@@ -119,7 +118,7 @@ $.
 The result is the same as if we calculated $3 \cdot (5 + 6) = 3 \cdot 11 = 33 = 4 \cdot 7 + 5 \equiv 5 \pmod{7}$.
 
 Reduction modulo $p$ is very useful when performing calculations on a computer, since it allows us to represent values in a fixed number of bits.
-For example, if $p \le 2^n$, then any number in $\mathbb{Z}_p$ fits in $n$ bits.
+For example, if $0 < p \le 2^n$, any number in $\mathbb{Z}_p$ fits in $n$ bits.
 
 In cryptography, $p$ is often a large prime number.
 For example, Curve25519 uses arithmetic modulo the prime number $p=2^{255}-19=\verb|0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed|$ in hexadecimal (hence the name of the curve), so the numbers in the curve calculations fit in 255 bits (just under 32 bytes).
@@ -141,9 +140,9 @@ Moreover, the operation must satisfy the following requirements:
 \item[Inverse element:] For every $a \in E$ there exists an element $b \in E$ such that $a \bullet b = b \bullet a = e$, where $e$ is the identity element. We then call $b$ the \emph{inverse} of $a$, written $b = a^{-1}$, and vice versa ($a = b^{-1}$).
 \end{description}
 
+A non-abelian group has all of the above properties apart from commutativity, but all the groups we deal with in this paper are abelian.
 The number of elements in $E$ is called the \emph{order} of the group.
 A group is a very useful abstraction since it has many nice mathematical properties, especially if the number of elements in $E$ is a prime number (this is called a \emph{prime order group}).
-A non-abelian group has all of the above properties apart from commutativity, but all the groups we deal with in this document are abelian.
 
 There are many possible ways of constructing a group.
 For example, the set of (positive and negative) integers $\mathbb{Z}$ together with the addition operator $+$ forms a group with identity element $0$, where the inverse of element $a \in \mathbb{Z}$ is $-a$.
@@ -228,7 +227,7 @@ How do the groups from \autoref{sec:groups} fare with respect to these security 
     We can compute the multiplicative inverse of $g$ (\autoref{sec:cyclic}) and then compute $g^{-1} \cdot g \cdot k = k$ in order to efficiently recover $k$.
 
 \item In $\mathbb{Z}_p^*$, the multiplicative group of integers modulo $p$, discrete logarithms are believed to be hard, but the DDH assumption does not hold.
-    A detailed explanation goes beyond the scope of this document, but it can be stated briefly: the adversary can use Euler's criterion to determine whether $g^k$ is a quadratic residue modulo $p$, which leaks the least significant bit of $k$ (i.e.\ whether $k$ is odd or even).
+    A detailed explanation goes beyond the scope of this paper, but it can be stated briefly: the adversary can use Euler's criterion to determine whether $g^k$ is a quadratic residue modulo $p$, which leaks the least significant bit of $k$ (i.e.\ whether $k$ is odd or even).
     Moreover, $jk$ is even if and only if $j$ and/or $k$ is even.
     Thus, if the adversary is given $(g, g^j, g^k, g^i)$, and if $i$ is odd while $j$ or $k$ is even (or if $i$ is even while $j$ and $k$ are both odd), then the adversary knows that the fourth element of the tuple must be a random group element, not $g^{jk}$.
     This gives the adversary a significant advantage over random guessing, so the DDH assumption does not hold.
@@ -297,7 +296,7 @@ A nice property of a cyclic group is that the generator gives us a one-to-one ma
 Thus, if we choose an integer $k \in [0,\, |E|-1]$ uniformly at random and compute $a^k$, the result is a group element chosen uniformly at random~-- i.e.\ every group element is equally likely to be picked with probability $\frac{1}{|E|}$.
 This fact is used in various cryptographic protocols.
 
-Another property of a cyclic group with generator $a$ and identity element $e$ is that $e = a^0 = a^{|E|} = a \bullet a^{|E|-1}$, so therefore $a^{|E|-1}$ must be the inverse element of $a$.
+In a finite cyclic group with generator $a$ and identity element $e$ we have $e = a^0 = a^{|E|} = a \bullet a^{|E|-1}$, so therefore $a^{|E|-1}$ must be the inverse element of $a$.
 In general, for any group element $a$ with order $k$ we have $a^k = e$.
 
 A similar rule applies to $\mathbb{Z}_p^*$, the multiplicative group of integers modulo $p$.
@@ -357,7 +356,7 @@ In the case of Curve25519 this is the field of integers modulo the prime $p = 2^
 Most programming languages do not have built-in support for such large numbers; moreover, a general-purpose implementation of big numbers might not be suitable for cryptographic purposes, because the running time and memory access patterns of an operation may depend on the values of its inputs.
 Such variations in timing and memory access can be exploited by \emph{side-channel attacks} to potentially leak secrets to an adversary.
 
-The implementation analysed in this document includes its own implementation of field arithmetic, which takes care to use \emph{constant-time} algorithms whose running time and memory access patterns do not depend on the input values.
+The implementation analysed in this paper includes its own implementation of field arithmetic, which takes care to use \emph{constant-time} algorithms whose running time and memory access patterns do not depend on the input values.
 The algorithms only rely on standard arithmetic and bit operators in C, which always take the same time to execute.
 
 \subsection{Addition and subtraction}\label{sec:add-subtract}
@@ -641,7 +640,7 @@ Some other curve equations are also used for elliptic curve cryptography, such a
 \begin{equation}
 y^2 = x^3 + Ax + B
 \end{equation}
-but in this document we focus on Montgomery curves.
+but in this paper we focus on Montgomery curves.
 
 \begin{figure}
 % Points for first plot are computed as follows:
@@ -842,7 +841,6 @@ That is, given two curve points $P$ and $Q$, we can draw a straight line through
 The point obtained in this way is $P \bullet Q$.
 
 Using our results~\eqref{eq:xR} and~\eqref{eq:yR} for the coordinates of the third intersection point, along with equations~\eqref{eq:line} and~\eqref{eq:derivative} for the slope $\lambda$, we can now define $P_1 \bullet P_2$ for any two points $P_1$ and $P_2$ on the curve with $P_1 \neq P_2^{-1}$:
-
 \begin{align}
 P_1 \bullet P_2 = (x_1, y_1) \bullet (x_2, y_2) &= (x_3, y_3) \quad\text{where}\nonumber\\
 x_3 = \lambda^2 - A - x_1 - x_2 &= \begin{dcases}
@@ -909,7 +907,7 @@ The formulas in the EFD are checked using SageMath; we will not repeat those che
 \paragraph{A note on notation.}
 In the literature on elliptic curves, the group operation $\bullet$ is traditionally written as $+$, the inverse of $P$ is written as $-P$, combining two different points $P$ and $Q$ using the group operation $P+Q$ is called \emph{point addition}, and combining a point $P$ with itself $P+P=2P$ is known as \emph{point doubling}.
 On the other hand, in the literature on cryptographic protocols, the group operation is traditionally written as multiplication $\cdot$, the inverse of $P$ is written as $P^{-1}$, and combining a group element with itself is written as $P \cdot P = P^2$.
-In this document we use $\bullet$ as the group operation on \emph{elliptic curve group elements} $E$, in order to avoid confusion with the addition and multiplication of individual \emph{field elements} (i.e.\ integers modulo $p$), which is used in the formulas above.
+In this paper we use $\bullet$ as the group operation on \emph{elliptic curve group elements} $E$, in order to avoid confusion with the addition and multiplication of individual \emph{field elements} (i.e.\ integers modulo $p$), which is used in the formulas above.
 
 \begin{figure}
 \centering
@@ -986,7 +984,7 @@ The public key is obtained from scalar multiplication of \verb|sk| with the fixe
 If called by the sender, \verb|pk| is the recipient's public key and \verb|sk| is the random integer generated by the sender (Alice's $k$ in the example in \autoref{sec:diffie-hellman}).
 If called by the recipient, \verb|pk| is the group element sent along with the message ($g^k$ in the example of \autoref{sec:diffie-hellman}) and \verb|sk| is the recipient's private key.
 In either case, computing the scalar product of the group element and the secret integer produces the shared secret, which is written to \verb|out|.
-The shared secret can then be used to initialise a symmetric cipher to encrypt the actual message, but this is beyond the scope of X25519, so we do not discuss it further in this document.
+The shared secret can then be used to initialise a symmetric cipher to encrypt the actual message, but this is beyond the scope of X25519, so we do not discuss it further in this paper.
 
 \subsection{The Montgomery ladder}\label{sec:ladder}
 
@@ -1061,6 +1059,7 @@ $P_{2i+1} = (x_{2i+1}, y_{2i+1}) = P_i \bullet P_{i+1} = (x_1, y_1) \bullet (x_2
 We assume that $P_i \ne P_{i+1}$ (because we know that $P_{i+1} = P^{i+1} = P^i \bullet P = P_i \bullet P$ and we are assuming that $P \ne \infty$), and we also assume that $P_i^{-1} \ne P_{i+1}$ (in this case, $P_{2i+1} = \infty$).
 Therefore we can assume $x_1 \neq x_2$.
 Taking equation~\eqref{eq:law-x} as our starting point:
+
 \begin{align}
 x_{2i+1} &= \left(\frac{y_2 - y_1}{x_2 - x_1}\right)^2 - A - x_1 - x_2 \nonumber\\[5pt]
 &= \frac{y_2^2 - 2y_1 y_2 + y_1^2 - (A + x_1 + x_2)\,(x_2 - x_1)^2}{(x_2 - x_1)^2} \nonumber\\[5pt]
@@ -1277,7 +1276,8 @@ Moreover, it uses \verb|e| and \verb|f| as temporary variables.
 In the code of \autoref{code:scalarmult}, variables are reused.
 For better readability, we give a new name to each variable assignment in the following breakdown of the operations.
 The 18 arithmetic operations in the Montgomery ladder loop (10 multiplications/squarings and 8 additions/subtractions) compute the following expressions:
-
+\begingroup
+\allowdisplaybreaks
 \begin{align*}
     & \texttt{fadd(e, a, c);} & v_1    &= a + c \\
     & \texttt{fsub(a, a, c);} & v_2    &= a - c \\
@@ -1300,6 +1300,7 @@ The 18 arithmetic operations in the Montgomery ladder loop (10 multiplications/s
     & \texttt{fmul(d, b, x);} & v_{17} &= v_{11} \cdot x &&= 4x\,(ad - bc)^2 \\
     & \texttt{fmul(b, e, e);} & v_{18} &= v_9^2          &&= 4\,(ab - cd)^2
 \end{align*}
+\endgroup
 
 Let $a = X_i$, $b = X_{i+1}$, $c = Z_i$, $d = Z_{i+1}$, and $x = x_P$ at the start of a loop iteration.
 Further let \verb|bit| be 0, so the \verb|swap25519| operations have no effect.
@@ -1365,9 +1366,9 @@ This value can now be used as a public key (if \verb|point| was the base point),
 
 \section{Conclusions}
 
-This document has shown how to derive the X25519 implementation in TweetNaCl, line by line, from first principles.
+This paper has shown how to derive the X25519 implementation in TweetNaCl, line by line, from first principles.
 Starting by assuming only minimal mathematical background knowledge we have explored how modern, constant-time cryptography is implemented, and justified the correctness of this implementation.
-Although we have only studied one particular implementation, other implementations such as libsodium share many principles with the code studied here; after reading this document, you will find it much easier to figure out what other implementations are doing.
+Although we have only studied one particular implementation, other implementations such as libsodium share many principles with the code studied here; after reading this paper, you will find it much easier to figure out what other implementations are doing.
 
 For future work it would be interesting to expand this discussion to other common algorithms in elliptic curve cryptography, such as the Ed25519 signature scheme, and other curves such as NIST curves and the secp256k1 curve used by Bitcoin.
 The Ristretto255 prime-order group~\cite{Ristretto255}, which eliminates the cofactor of Curve25519, would also be interesting to discuss.
@@ -1447,7 +1448,7 @@ I believe that by carefully studying existing implementations of cryptographic a
 % How not to do it: https://soatok.blog/2020/07/08/gnu-a-heuristic-for-bad-cryptography/
 
 \begin{acks}
-Thank you to Alastair Beresford, Daniel Hugenroth, Markus Kuhn, and Alex Mason for feedback on a draft of this document.
+Thank you to Alastair Beresford, Daniel Hugenroth, Markus Kuhn, and Alex Mason for feedback on a draft of this paper.
 I am grateful for financial support from a Leverhulme Trust Early Career Fellowship, the Isaac Newton Trust, Nokia Bell Labs, and crowdfunding supporters including Ably, Adri{\` a} Arcarons, Chet Corcos, Macrometa, Mintter, David Pollak, RelationalAI, SoftwareMill, Talent Formation Network, and Adam Wiggins.
 \end{acks}
 
@@ -1477,8 +1478,8 @@ This appendix details those changes.
 \end{minted}
         The addition of $2^{16}$ to \verb|o[i]| and the subsequent subtraction of $1$ from \verb|o[i+1]| cancel out and serve no apparent purpose, so I removed them.
         I hypothesise that perhaps the addition of $2^{16}$ was supposed to ensure that \verb|o[i]| is non-negative, but this is not true because it is possible to have $\texttt{o[i]} < -2^{16}$, and it is not necessary because the code handles negative values correctly anyway.
-        Dan Bernstein and Tanja Lange did not respond to my emails requesting an explanation of these lines of code.
-        My simplified version of the loop body also replaces the hard-to-read \verb|(i+1)*(i<15)| array subscript with a simple if statement:
+        Dan Bernstein and Tanja Lange did not respond to my emails requesting a clarification of these lines of code.
+        My simplified version of the loop body also replaces the hard-to-read ``multiply-by-boolean'' idiom with a simple if statement:
 \begin{minted}{c}
     carry = elem[i] >> 16;
     elem[i] -= carry << 16;
@@ -1502,7 +1503,7 @@ This appendix details those changes.
         The original code, after completing the Montgomery ladder, copies the value of local variable \verb|a| to indexes $16 \dots 31$ of \verb|x|, \verb|c| to indexes $32 \dots 47$, \verb|b| to indexes $48 \dots 63$, and \verb|d| to indexes $64 \dots 79$, and then performs the last three function calls (the inversion of \verb|c|, the multiplication of \verb|a| and \verb|c|, and the \verb|pack25519| of the result) on offsets of the variable \verb|x|.
         The purpose of copying \verb|a|, \verb|b|, \verb|c| and \verb|d| to \verb|x| is unclear, since nothing ever uses the fact that these values have been copied into one contiguous array.
         Perhaps it is a remnant of earlier debugging logic?
-        Dan Bernstein and Tanja Lange did not respond to my emails requesting an explanation of why this is happening.
+        Dan Bernstein and Tanja Lange did not respond to my emails requesting a clarification of why this is happening.
         I therefore removed the copying into \verb|x| and changed the last three function calls of \verb|scalarmult| to operate directly on \verb|a| and \verb|c| instead.
 \end{itemize}
 
