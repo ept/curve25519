@@ -730,8 +730,8 @@ If $y=0$, the tangent is vertical, and we handle this as part of the case $y_P=-
 \begin{tikzpicture}[scale=3.0]
 \draw [->] (-0.1,0) -- (2.1,0) node[right] {$x$};
 \draw [->] (0,-1.0) -- (0,1.0) node[above] {$y$};
-\draw [color=blue] plot[id=pos,domain=0:1.6,samples=100] function{ sqrt(x**3 - 1.9*x**2 + x)};
-\draw [color=blue] plot[id=neg,domain=0:1.6,samples=100] function{-sqrt(x**3 - 1.9*x**2 + x)};
+\draw [color=blue] plot[id=pos2,domain=0:1.6,samples=100] function{ sqrt(x**3 - 1.9*x**2 + x)};
+\draw [color=blue] plot[id=neg2,domain=0:1.6,samples=100] function{-sqrt(x**3 - 1.9*x**2 + x)};
 \draw [color=red] (0.6,-0.36332) circle [radius=1pt] node[below right,outer sep=5pt] {$P$};
 \draw [color=red] (0.6, 0.36332) circle [radius=1pt] node[above right,outer sep=5pt] {$Q$};
 \draw [color=red] (0.6,-1.0) -- (0.6,1.0);
@@ -888,6 +888,14 @@ In the literature on elliptic curves, the group operation $\bullet$ is tradition
 On the other hand, in the literature on cryptographic protocols, the group operation is traditionally written as multiplication $\cdot$, the inverse of $P$ is written as $P^{-1}$, and combining a group element with itself is written as $P \cdot P = P^2$.
 In this document we use $\bullet$ as the group operation on \emph{elliptic curve group elements} $E$, in order to avoid confusion with the addition and multiplication of individual \emph{field elements} (i.e.\ integers modulo $p$), which is used in the formulas above.
 
+\begin{figure}
+\centering
+\input{jumping}
+\caption{Using the group operator to repeatedly combine a curve point $P$ with itself. Each application of the operator can be visualised as drawing a straight line through $P$ and $P^i$, finding the third point where this line intersects the curve, and mirroring that point with respect to the $x$ axis to obtain $P^{i+1}$. The result is a sequence of points that ``jump around'' in a pseudorandom manner.}
+\Description{Six plots of an elliptic curve, each showing how two points are combined with the group operator to produce a third point. On each plot, the first input point is a constant starting point $P$, and the other input point is the output point of the previous plot. The sequence of points jumps around the curve with no discernible pattern.}
+\label{fig:jumping}
+\end{figure}
+
 \subsection{Elliptic-curve Diffie-Hellman}\label{sec:ecdh}
 
 Now that we have constructed a group, we can use this group for cryptographic protocols.
@@ -901,7 +909,7 @@ We show in \autoref{sec:ladder} how to compute $P^k$ efficiently, even for large
 This operation is known as \emph{scalar multiplication} (where \emph{scalar} refers to the fact that $k$ is an integer, not a group element).
 
 We can visualise the sequence $P$, $P^2$, $P^3$, {\dots} as repeatedly drawing a line through points $P$ and $P^i$, as shown in \autoref{fig:curve}, finding a third intersection point of this line, and mirroring it with respect to the $x$ axis to obtain point $P^{i+1}$.
-The effect, intuitively speaking, is a sequence of points that ``jump around'' the curve in a complicated pattern that is difficult to predict.
+The effect, intuitively speaking, is a sequence of points that ``jump around'' the curve in a complicated pattern that is difficult to predict, as illustrated in \autoref{fig:jumping}.
 This complicated pattern is what makes the group suitable for cryptography.
 In particular, it is believed that the Decisional Diffie-Hellman assumption (see \autoref{sec:cdh-ddh}) is true in this group.
 
