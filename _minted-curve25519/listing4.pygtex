@@ -1,49 +1,22 @@
 \begin{Verbatim}[commandchars=\\\{\}]
-\PYG{k}{typedef} \PYG{k+kt}{long} \PYG{k+kt}{long} \PYG{n}{i64}\PYG{p}{;}
-\PYG{k}{typedef} \PYG{n}{i64} \PYG{n}{field\PYGZus{}elem}\PYG{p}{[}\PYG{l+m+mi}{16}\PYG{p}{];}
-\PYG{k}{static} \PYG{k}{const} \PYG{n}{field\PYGZus{}elem} \PYG{n}{\PYGZus{}121665} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+m+mh}{0xDB41}\PYG{p}{,} \PYG{l+m+mi}{1}\PYG{p}{\PYGZcb{};}
+\PYG{c+c1}{\PYGZsh{} The finite field of integers modulo p (GF is short for Galois Field)}
+\PYG{n}{field} \PYG{o}{=} \PYG{n}{GF}\PYG{p}{(}\PYG{l+m+mi}{2}\PYG{o}{\PYGZca{}}\PYG{l+m+mi}{255} \PYG{o}{\PYGZhy{}} \PYG{l+m+mi}{19}\PYG{p}{)}
 
-\PYG{k+kt}{void} \PYG{n+nf}{scalarmult}\PYG{p}{(}\PYG{n}{u8} \PYG{o}{*}\PYG{n}{out}\PYG{p}{,} \PYG{k}{const} \PYG{n}{u8} \PYG{o}{*}\PYG{n}{scalar}\PYG{p}{,} \PYG{k}{const} \PYG{n}{u8} \PYG{o}{*}\PYG{n}{point}\PYG{p}{)}
-\PYG{p}{\PYGZob{}}
-  \PYG{n}{u8} \PYG{n}{clamped}\PYG{p}{[}\PYG{l+m+mi}{32}\PYG{p}{];}
-  \PYG{n}{i64} \PYG{n}{bit}\PYG{p}{,} \PYG{n}{i}\PYG{p}{;}
-  \PYG{n}{field\PYGZus{}elem} \PYG{n}{a}\PYG{p}{,} \PYG{n}{b}\PYG{p}{,} \PYG{n}{c}\PYG{p}{,} \PYG{n}{d}\PYG{p}{,} \PYG{n}{e}\PYG{p}{,} \PYG{n}{f}\PYG{p}{,} \PYG{n}{x}\PYG{p}{;}
-  \PYG{k}{for} \PYG{p}{(}\PYG{n}{i} \PYG{o}{=} \PYG{l+m+mi}{0}\PYG{p}{;} \PYG{n}{i} \PYG{o}{\PYGZlt{}} \PYG{l+m+mi}{32}\PYG{p}{;} \PYG{o}{++}\PYG{n}{i}\PYG{p}{)} \PYG{n}{clamped}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{=} \PYG{n}{scalar}\PYG{p}{[}\PYG{n}{i}\PYG{p}{];}
-  \PYG{n}{clamped}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]} \PYG{o}{\PYGZam{}=} \PYG{l+m+mh}{0xf8}\PYG{p}{;}
-  \PYG{n}{clamped}\PYG{p}{[}\PYG{l+m+mi}{31}\PYG{p}{]} \PYG{o}{=} \PYG{p}{(}\PYG{n}{clamped}\PYG{p}{[}\PYG{l+m+mi}{31}\PYG{p}{]} \PYG{o}{\PYGZam{}} \PYG{l+m+mh}{0x7f}\PYG{p}{)} \PYG{o}{|} \PYG{l+m+mh}{0x40}\PYG{p}{;}
-  \PYG{n}{unpack25519}\PYG{p}{(}\PYG{n}{x}\PYG{p}{,} \PYG{n}{point}\PYG{p}{);}
-  \PYG{k}{for} \PYG{p}{(}\PYG{n}{i} \PYG{o}{=} \PYG{l+m+mi}{0}\PYG{p}{;} \PYG{n}{i} \PYG{o}{\PYGZlt{}} \PYG{l+m+mi}{16}\PYG{p}{;} \PYG{o}{++}\PYG{n}{i}\PYG{p}{)} \PYG{p}{\PYGZob{}}
-    \PYG{n}{b}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{=} \PYG{n}{x}\PYG{p}{[}\PYG{n}{i}\PYG{p}{];}
-    \PYG{n}{d}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{=} \PYG{n}{a}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{=} \PYG{n}{c}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{=} \PYG{l+m+mi}{0}\PYG{p}{;}
-  \PYG{p}{\PYGZcb{}}
-  \PYG{n}{a}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]} \PYG{o}{=} \PYG{n}{d}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]} \PYG{o}{=} \PYG{l+m+mi}{1}\PYG{p}{;}
-  \PYG{k}{for} \PYG{p}{(}\PYG{n}{i} \PYG{o}{=} \PYG{l+m+mi}{254}\PYG{p}{;} \PYG{n}{i} \PYG{o}{\PYGZgt{}=} \PYG{l+m+mi}{0}\PYG{p}{;} \PYG{o}{\PYGZhy{}\PYGZhy{}}\PYG{n}{i}\PYG{p}{)} \PYG{p}{\PYGZob{}}
-    \PYG{n}{bit} \PYG{o}{=} \PYG{p}{(}\PYG{n}{clamped}\PYG{p}{[}\PYG{n}{i} \PYG{o}{\PYGZgt{}\PYGZgt{}} \PYG{l+m+mi}{3}\PYG{p}{]} \PYG{o}{\PYGZgt{}\PYGZgt{}} \PYG{p}{(}\PYG{n}{i} \PYG{o}{\PYGZam{}} \PYG{l+m+mi}{7}\PYG{p}{))} \PYG{o}{\PYGZam{}} \PYG{l+m+mi}{1}\PYG{p}{;}
-    \PYG{n}{swap25519}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{b}\PYG{p}{,} \PYG{n}{bit}\PYG{p}{);}
-    \PYG{n}{swap25519}\PYG{p}{(}\PYG{n}{c}\PYG{p}{,} \PYG{n}{d}\PYG{p}{,} \PYG{n}{bit}\PYG{p}{);}
-    \PYG{n}{fadd}\PYG{p}{(}\PYG{n}{e}\PYG{p}{,} \PYG{n}{a}\PYG{p}{,} \PYG{n}{c}\PYG{p}{);}
-    \PYG{n}{fsub}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{a}\PYG{p}{,} \PYG{n}{c}\PYG{p}{);}
-    \PYG{n}{fadd}\PYG{p}{(}\PYG{n}{c}\PYG{p}{,} \PYG{n}{b}\PYG{p}{,} \PYG{n}{d}\PYG{p}{);}
-    \PYG{n}{fsub}\PYG{p}{(}\PYG{n}{b}\PYG{p}{,} \PYG{n}{b}\PYG{p}{,} \PYG{n}{d}\PYG{p}{);}
-    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{d}\PYG{p}{,} \PYG{n}{e}\PYG{p}{,} \PYG{n}{e}\PYG{p}{);}
-    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{f}\PYG{p}{,} \PYG{n}{a}\PYG{p}{,} \PYG{n}{a}\PYG{p}{);}
-    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{c}\PYG{p}{,} \PYG{n}{a}\PYG{p}{);}
-    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{c}\PYG{p}{,} \PYG{n}{b}\PYG{p}{,} \PYG{n}{e}\PYG{p}{);}
-    \PYG{n}{fadd}\PYG{p}{(}\PYG{n}{e}\PYG{p}{,} \PYG{n}{a}\PYG{p}{,} \PYG{n}{c}\PYG{p}{);}
-    \PYG{n}{fsub}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{a}\PYG{p}{,} \PYG{n}{c}\PYG{p}{);}
-    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{b}\PYG{p}{,} \PYG{n}{a}\PYG{p}{,} \PYG{n}{a}\PYG{p}{);}
-    \PYG{n}{fsub}\PYG{p}{(}\PYG{n}{c}\PYG{p}{,} \PYG{n}{d}\PYG{p}{,} \PYG{n}{f}\PYG{p}{);}
-    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{c}\PYG{p}{,} \PYG{n}{\PYGZus{}121665}\PYG{p}{);}
-    \PYG{n}{fadd}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{a}\PYG{p}{,} \PYG{n}{d}\PYG{p}{);}
-    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{c}\PYG{p}{,} \PYG{n}{c}\PYG{p}{,} \PYG{n}{a}\PYG{p}{);}
-    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{d}\PYG{p}{,} \PYG{n}{f}\PYG{p}{);}
-    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{d}\PYG{p}{,} \PYG{n}{b}\PYG{p}{,} \PYG{n}{x}\PYG{p}{);}
-    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{b}\PYG{p}{,} \PYG{n}{e}\PYG{p}{,} \PYG{n}{e}\PYG{p}{);}
-    \PYG{n}{swap25519}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{b}\PYG{p}{,} \PYG{n}{bit}\PYG{p}{);}
-    \PYG{n}{swap25519}\PYG{p}{(}\PYG{n}{c}\PYG{p}{,} \PYG{n}{d}\PYG{p}{,} \PYG{n}{bit}\PYG{p}{);}
-  \PYG{p}{\PYGZcb{}}
-  \PYG{n}{finverse}\PYG{p}{(}\PYG{n}{c}\PYG{p}{,} \PYG{n}{c}\PYG{p}{);}
-  \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{a}\PYG{p}{,} \PYG{n}{c}\PYG{p}{);}
-  \PYG{n}{pack25519}\PYG{p}{(}\PYG{n}{out}\PYG{p}{,} \PYG{n}{a}\PYG{p}{);}
-\PYG{p}{\PYGZcb{}}
+\PYG{c+c1}{\PYGZsh{} EllipticCurve(field, [a1, a2, a3, a4, a5]) constructs an elliptic curve over the}
+\PYG{c+c1}{\PYGZsh{} given field, with curve equation y\PYGZca{}2 + a1*x*y + a3*y = x\PYGZca{}3 + a2*x\PYGZca{}2 + a4*x + a5.}
+\PYG{c+c1}{\PYGZsh{} We choose a1 = 0, a2 = 486662, a3 = 0, a4 = 1, a5 = 0 to give us the Montgomery}
+\PYG{c+c1}{\PYGZsh{} curve equation y\PYGZca{}2 = x\PYGZca{}3 + 486662 * x\PYGZca{}2 + x.}
+\PYG{n}{E} \PYG{o}{=} \PYG{n}{EllipticCurve}\PYG{p}{(}\PYG{n}{field}\PYG{p}{,} \PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{,} \PYG{l+m+mi}{486662}\PYG{p}{,} \PYG{l+m+mi}{0}\PYG{p}{,} \PYG{l+m+mi}{1}\PYG{p}{,} \PYG{l+m+mi}{0}\PYG{p}{])}
+
+\PYG{c+c1}{\PYGZsh{} Check the order (cardinality) of the group defined by that curve}
+\PYG{n}{q} \PYG{o}{=} \PYG{l+m+mi}{2}\PYG{o}{\PYGZca{}}\PYG{l+m+mi}{252} \PYG{o}{+} \PYG{l+m+mi}{27742317777372353535851937790883648493}
+\PYG{n}{q}\PYG{o}{.}\PYG{n}{is\PYGZus{}prime}\PYG{p}{()} \PYG{c+c1}{\PYGZsh{} returns True}
+\PYG{n}{E}\PYG{o}{.}\PYG{n}{cardinality}\PYG{p}{()} \PYG{o}{==} \PYG{l+m+mi}{8} \PYG{o}{*} \PYG{n}{q} \PYG{c+c1}{\PYGZsh{} returns True}
+
+\PYG{c+c1}{\PYGZsh{} Define the base point (generator) g to be the point with x coordinate = 9,}
+\PYG{c+c1}{\PYGZsh{} and check the order of that point}
+\PYG{n}{base} \PYG{o}{=} \PYG{l+m+mi}{9}
+\PYG{n}{g} \PYG{o}{=} \PYG{p}{[}\PYG{n}{field}\PYG{p}{(}\PYG{n}{base}\PYG{p}{),} \PYG{n}{sqrt}\PYG{p}{(}\PYG{n}{field}\PYG{p}{(}\PYG{n}{base}\PYG{o}{\PYGZca{}}\PYG{l+m+mi}{3} \PYG{o}{+} \PYG{l+m+mi}{486662} \PYG{o}{*} \PYG{n}{base}\PYG{o}{\PYGZca{}}\PYG{l+m+mi}{2} \PYG{o}{+} \PYG{n}{base}\PYG{p}{))]} \PYG{c+c1}{\PYGZsh{} [x, y] coordinates}
+\PYG{n}{q} \PYG{o}{*} \PYG{n}{E}\PYG{p}{(}\PYG{n}{g}\PYG{p}{)} \PYG{c+c1}{\PYGZsh{} returns (0 : 1 : 0), which is the point at infinity}
+\PYG{c+c1}{\PYGZsh{} This indicates that point g has order q in the elliptic curve group E.}
 \end{Verbatim}

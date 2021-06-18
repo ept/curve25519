@@ -123,7 +123,10 @@ For example, if $p \le 2^n$, then any number in $\mathbb{Z}_p$ fits in $n$ bits.
 
 In cryptography, $p$ is often a large prime number.
 For example, Curve25519 uses arithmetic modulo the prime number $p=2^{255}-19=\verb|0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed|$ in hexadecimal (hence the name of the curve), so the numbers in the curve calculations fit in 255 bits (just under 32 bytes).
-The fact that $2^{255}-19$ is a prime number can be checked using algorithms for primality testing.
+We can use open source mathematics software SageMath to check that $p$ is indeed a prime:
+\begin{minted}{python}
+    (2^255 - 19).is_prime() # returns True
+\end{minted}
 
 \subsection{Groups}\label{sec:groups}
 
@@ -639,7 +642,6 @@ Some other curve equations are also used for elliptic curve cryptography, such a
 y^2 = x^3 + Ax + B
 \end{equation}
 but in this document we focus on Montgomery curves.
-% TODO we can use SageMath to compute the number of points on the curve: see comment in section sec:group-construction
 
 \begin{figure}
 % Points for first plot are computed as follows:
@@ -773,6 +775,32 @@ y_R = \lambda\,x_R + c = \lambda\,x_R + y_P - \lambda\,x_P = y_P + \lambda\,(x_R
 \end{equation}
 Since $(x_R, y_R)$ is defined whenever $\lambda$ exists, we know that the third intersection point $R$ exists whenever the straight line is not vertical.
 
+\begin{listing}
+\begin{minted}{python}
+# The finite field of integers modulo p (GF is short for Galois Field)
+field = GF(2^255 - 19)
+
+# EllipticCurve(field, [a1, a2, a3, a4, a5]) constructs an elliptic curve over the
+# given field, with curve equation y^2 + a1*x*y + a3*y = x^3 + a2*x^2 + a4*x + a5.
+# We choose a1 = 0, a2 = 486662, a3 = 0, a4 = 1, a5 = 0 to give us the Montgomery
+# curve equation y^2 = x^3 + 486662 * x^2 + x.
+E = EllipticCurve(field, [0, 486662, 0, 1, 0])
+
+# Check the order (cardinality) of the group defined by that curve
+q = 2^252 + 27742317777372353535851937790883648493
+q.is_prime() # returns True
+E.cardinality() == 8 * q # returns True
+
+# Define the base point (generator) g to be the point with x coordinate = 9,
+# and check the order of that point
+base = 9
+g = [field(base), sqrt(field(base^3 + 486662 * base^2 + base))] # [x, y] coordinates
+q * E(g) # returns (0 : 1 : 0), which is the point at infinity
+# This indicates that point g has order q in the elliptic curve group E.
+\end{minted}
+\caption{SageMath code to compute the order of the Curve25519 group and the base point.}\label{code:group-order}
+\end{listing}
+
 \subsection{Constructing a group}\label{sec:group-construction}
 
 We will now use the results from the last section to construct a group.
@@ -784,13 +812,8 @@ The group has an infinite number of elements when the $x$ and $y$ coordinates ar
 For $x, y \in \mathbb{Z}_p$ there are $p^2$ possible $(x, y)$ pairs, and only some of them are solutions of the curve equation.
 The exact number of solutions depends on the curve equation, the parameter $A$, and the size of the underlying field.
 Algorithms for counting the number of curve points are presented in textbooks~\cite{Blake:1999,Cohen:2006}.
-In the case of Curve25519 with $A = 486662$ we have $|E| = 8 \cdot (2^{252} + 27742317777372353535851937790883648493)$ as discussed in \autoref{sec:cofactor}.
-% TODO We can check this in SageMath as follows:
-% k = GF(2^255 - 19)
-% E = EllipticCurve([k(0), 486662, 0, 1, 0])
-% order = 2^252 + 27742317777372353535851937790883648493
-% order.is_prime() # returns True
-% E.cardinality() == 8*order # returns True
+In the case of Curve25519 with $p=2^{255}-19$ and $A = 486662$ we have $|E| = 8 \cdot (2^{252} + 27742317777372353535851937790883648493)$ as discussed in \autoref{sec:cofactor}.
+We can use SageMath to check this is correct, as shown in \autoref{code:group-order}.
 
 The point at infinity has no coordinates, and its purpose is to deal with vertical lines.
 When two different points have the same $x$ coordinate and we draw a vertical line through them, like in \autoref{fig:vertical}, we define the point at infinity to be the third point at which the line ``intersects the curve''.
@@ -881,7 +904,7 @@ doubling y = (2 x1+x1+a) (3 x1^2+2 a x1+1)/(2 b y1)-b (3 x1^2+2 a x1+1)^3/(2 b y
 \end{verbatim}
 This database uses a slightly more general form $B y^2 = x^3 + A x^2 + x$ with an additional parameter $B$.
 We can see that with $B=1$, the formulas in the database equal our formulas~\eqref{eq:law-x} and~\eqref{eq:law-y}.
-The formulas in the EFD are checked using the SageMath computer algebra system.
+The formulas in the EFD are checked using SageMath; we will not repeat those checks here.
 
 \paragraph{A note on notation.}
 In the literature on elliptic curves, the group operation $\bullet$ is traditionally written as $+$, the inverse of $P$ is written as $-P$, combining two different points $P$ and $Q$ using the group operation $P+Q$ is called \emph{point addition}, and combining a point $P$ with itself $P+P=2P$ is known as \emph{point doubling}.
@@ -952,14 +975,8 @@ We will see the implementation of \verb|scalarmult| in \autoref{code:scalarmult}
 
 \verb|scalarmult_base(out, scalar)| performs scalar multiplication using a fixed group element \verb|_9|, which is a curve point whose $x$ coordinate equals 9.
 This point is chosen because its order is a large prime, as explained in \autoref{sec:cofactor}.
+\autoref{code:group-order} shows how we can check the order of this point using SageMath.
 The result is again returned in \verb|out|.
-% TODO can check the order of the point in SageMath as follows:
-% k = GF(2^255 - 19)
-% E = EllipticCurve([k(0), 486662, 0, 1, 0])
-% order = 2^252 + 27742317777372353535851937790883648493
-% x = 9
-% base = [k(x), sqrt(k(x^3 + a2*x^2 + x))]
-% order*E(base) # returns (0 : 1 : 0)
 
 \verb|generate_keypair(pk, sk)| generates a new keypair, where the private key is written to \verb|sk| and the public key is written to \verb|pk|.
 The private key consists of 32 bytes (256 bits) drawn from a secure source of uniform random numbers.

@@ -1,5 +1,49 @@
 \begin{Verbatim}[commandchars=\\\{\}]
-    \PYG{n}{carry} \PYG{o}{=} \PYG{n}{elem}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{\PYGZgt{}\PYGZgt{}} \PYG{l+m+mi}{16}\PYG{p}{;}
-    \PYG{n}{elem}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{\PYGZhy{}=} \PYG{n}{carry} \PYG{o}{\PYGZlt{}\PYGZlt{}} \PYG{l+m+mi}{16}\PYG{p}{;}
-    \PYG{k}{if} \PYG{p}{(}\PYG{n}{i} \PYG{o}{\PYGZlt{}} \PYG{l+m+mi}{15}\PYG{p}{)} \PYG{n}{elem}\PYG{p}{[}\PYG{n}{i} \PYG{o}{+} \PYG{l+m+mi}{1}\PYG{p}{]} \PYG{o}{+=} \PYG{n}{carry}\PYG{p}{;} \PYG{k}{else} \PYG{n}{elem}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]} \PYG{o}{+=} \PYG{l+m+mi}{38} \PYG{o}{*} \PYG{n}{carry}\PYG{p}{;}
+\PYG{k}{typedef} \PYG{k+kt}{long} \PYG{k+kt}{long} \PYG{n}{i64}\PYG{p}{;}
+\PYG{k}{typedef} \PYG{n}{i64} \PYG{n}{field\PYGZus{}elem}\PYG{p}{[}\PYG{l+m+mi}{16}\PYG{p}{];}
+\PYG{k}{static} \PYG{k}{const} \PYG{n}{field\PYGZus{}elem} \PYG{n}{\PYGZus{}121665} \PYG{o}{=} \PYG{p}{\PYGZob{}}\PYG{l+m+mh}{0xDB41}\PYG{p}{,} \PYG{l+m+mi}{1}\PYG{p}{\PYGZcb{};}
+
+\PYG{k+kt}{void} \PYG{n+nf}{scalarmult}\PYG{p}{(}\PYG{n}{u8} \PYG{o}{*}\PYG{n}{out}\PYG{p}{,} \PYG{k}{const} \PYG{n}{u8} \PYG{o}{*}\PYG{n}{scalar}\PYG{p}{,} \PYG{k}{const} \PYG{n}{u8} \PYG{o}{*}\PYG{n}{point}\PYG{p}{)}
+\PYG{p}{\PYGZob{}}
+  \PYG{n}{u8} \PYG{n}{clamped}\PYG{p}{[}\PYG{l+m+mi}{32}\PYG{p}{];}
+  \PYG{n}{i64} \PYG{n}{bit}\PYG{p}{,} \PYG{n}{i}\PYG{p}{;}
+  \PYG{n}{field\PYGZus{}elem} \PYG{n}{a}\PYG{p}{,} \PYG{n}{b}\PYG{p}{,} \PYG{n}{c}\PYG{p}{,} \PYG{n}{d}\PYG{p}{,} \PYG{n}{e}\PYG{p}{,} \PYG{n}{f}\PYG{p}{,} \PYG{n}{x}\PYG{p}{;}
+  \PYG{k}{for} \PYG{p}{(}\PYG{n}{i} \PYG{o}{=} \PYG{l+m+mi}{0}\PYG{p}{;} \PYG{n}{i} \PYG{o}{\PYGZlt{}} \PYG{l+m+mi}{32}\PYG{p}{;} \PYG{o}{++}\PYG{n}{i}\PYG{p}{)} \PYG{n}{clamped}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{=} \PYG{n}{scalar}\PYG{p}{[}\PYG{n}{i}\PYG{p}{];}
+  \PYG{n}{clamped}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]} \PYG{o}{\PYGZam{}=} \PYG{l+m+mh}{0xf8}\PYG{p}{;}
+  \PYG{n}{clamped}\PYG{p}{[}\PYG{l+m+mi}{31}\PYG{p}{]} \PYG{o}{=} \PYG{p}{(}\PYG{n}{clamped}\PYG{p}{[}\PYG{l+m+mi}{31}\PYG{p}{]} \PYG{o}{\PYGZam{}} \PYG{l+m+mh}{0x7f}\PYG{p}{)} \PYG{o}{|} \PYG{l+m+mh}{0x40}\PYG{p}{;}
+  \PYG{n}{unpack25519}\PYG{p}{(}\PYG{n}{x}\PYG{p}{,} \PYG{n}{point}\PYG{p}{);}
+  \PYG{k}{for} \PYG{p}{(}\PYG{n}{i} \PYG{o}{=} \PYG{l+m+mi}{0}\PYG{p}{;} \PYG{n}{i} \PYG{o}{\PYGZlt{}} \PYG{l+m+mi}{16}\PYG{p}{;} \PYG{o}{++}\PYG{n}{i}\PYG{p}{)} \PYG{p}{\PYGZob{}}
+    \PYG{n}{b}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{=} \PYG{n}{x}\PYG{p}{[}\PYG{n}{i}\PYG{p}{];}
+    \PYG{n}{d}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{=} \PYG{n}{a}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{=} \PYG{n}{c}\PYG{p}{[}\PYG{n}{i}\PYG{p}{]} \PYG{o}{=} \PYG{l+m+mi}{0}\PYG{p}{;}
+  \PYG{p}{\PYGZcb{}}
+  \PYG{n}{a}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]} \PYG{o}{=} \PYG{n}{d}\PYG{p}{[}\PYG{l+m+mi}{0}\PYG{p}{]} \PYG{o}{=} \PYG{l+m+mi}{1}\PYG{p}{;}
+  \PYG{k}{for} \PYG{p}{(}\PYG{n}{i} \PYG{o}{=} \PYG{l+m+mi}{254}\PYG{p}{;} \PYG{n}{i} \PYG{o}{\PYGZgt{}=} \PYG{l+m+mi}{0}\PYG{p}{;} \PYG{o}{\PYGZhy{}\PYGZhy{}}\PYG{n}{i}\PYG{p}{)} \PYG{p}{\PYGZob{}}
+    \PYG{n}{bit} \PYG{o}{=} \PYG{p}{(}\PYG{n}{clamped}\PYG{p}{[}\PYG{n}{i} \PYG{o}{\PYGZgt{}\PYGZgt{}} \PYG{l+m+mi}{3}\PYG{p}{]} \PYG{o}{\PYGZgt{}\PYGZgt{}} \PYG{p}{(}\PYG{n}{i} \PYG{o}{\PYGZam{}} \PYG{l+m+mi}{7}\PYG{p}{))} \PYG{o}{\PYGZam{}} \PYG{l+m+mi}{1}\PYG{p}{;}
+    \PYG{n}{swap25519}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{b}\PYG{p}{,} \PYG{n}{bit}\PYG{p}{);}
+    \PYG{n}{swap25519}\PYG{p}{(}\PYG{n}{c}\PYG{p}{,} \PYG{n}{d}\PYG{p}{,} \PYG{n}{bit}\PYG{p}{);}
+    \PYG{n}{fadd}\PYG{p}{(}\PYG{n}{e}\PYG{p}{,} \PYG{n}{a}\PYG{p}{,} \PYG{n}{c}\PYG{p}{);}
+    \PYG{n}{fsub}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{a}\PYG{p}{,} \PYG{n}{c}\PYG{p}{);}
+    \PYG{n}{fadd}\PYG{p}{(}\PYG{n}{c}\PYG{p}{,} \PYG{n}{b}\PYG{p}{,} \PYG{n}{d}\PYG{p}{);}
+    \PYG{n}{fsub}\PYG{p}{(}\PYG{n}{b}\PYG{p}{,} \PYG{n}{b}\PYG{p}{,} \PYG{n}{d}\PYG{p}{);}
+    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{d}\PYG{p}{,} \PYG{n}{e}\PYG{p}{,} \PYG{n}{e}\PYG{p}{);}
+    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{f}\PYG{p}{,} \PYG{n}{a}\PYG{p}{,} \PYG{n}{a}\PYG{p}{);}
+    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{c}\PYG{p}{,} \PYG{n}{a}\PYG{p}{);}
+    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{c}\PYG{p}{,} \PYG{n}{b}\PYG{p}{,} \PYG{n}{e}\PYG{p}{);}
+    \PYG{n}{fadd}\PYG{p}{(}\PYG{n}{e}\PYG{p}{,} \PYG{n}{a}\PYG{p}{,} \PYG{n}{c}\PYG{p}{);}
+    \PYG{n}{fsub}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{a}\PYG{p}{,} \PYG{n}{c}\PYG{p}{);}
+    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{b}\PYG{p}{,} \PYG{n}{a}\PYG{p}{,} \PYG{n}{a}\PYG{p}{);}
+    \PYG{n}{fsub}\PYG{p}{(}\PYG{n}{c}\PYG{p}{,} \PYG{n}{d}\PYG{p}{,} \PYG{n}{f}\PYG{p}{);}
+    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{c}\PYG{p}{,} \PYG{n}{\PYGZus{}121665}\PYG{p}{);}
+    \PYG{n}{fadd}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{a}\PYG{p}{,} \PYG{n}{d}\PYG{p}{);}
+    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{c}\PYG{p}{,} \PYG{n}{c}\PYG{p}{,} \PYG{n}{a}\PYG{p}{);}
+    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{d}\PYG{p}{,} \PYG{n}{f}\PYG{p}{);}
+    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{d}\PYG{p}{,} \PYG{n}{b}\PYG{p}{,} \PYG{n}{x}\PYG{p}{);}
+    \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{b}\PYG{p}{,} \PYG{n}{e}\PYG{p}{,} \PYG{n}{e}\PYG{p}{);}
+    \PYG{n}{swap25519}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{b}\PYG{p}{,} \PYG{n}{bit}\PYG{p}{);}
+    \PYG{n}{swap25519}\PYG{p}{(}\PYG{n}{c}\PYG{p}{,} \PYG{n}{d}\PYG{p}{,} \PYG{n}{bit}\PYG{p}{);}
+  \PYG{p}{\PYGZcb{}}
+  \PYG{n}{finverse}\PYG{p}{(}\PYG{n}{c}\PYG{p}{,} \PYG{n}{c}\PYG{p}{);}
+  \PYG{n}{fmul}\PYG{p}{(}\PYG{n}{a}\PYG{p}{,} \PYG{n}{a}\PYG{p}{,} \PYG{n}{c}\PYG{p}{);}
+  \PYG{n}{pack25519}\PYG{p}{(}\PYG{n}{out}\PYG{p}{,} \PYG{n}{a}\PYG{p}{);}
+\PYG{p}{\PYGZcb{}}
 \end{Verbatim}
