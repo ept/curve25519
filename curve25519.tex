@@ -201,6 +201,11 @@ Thus, Alice and Bob obtain the same shared secret, and Bob can decrypt Alice's m
 An adversary knows $g$ and $g^j$ (since they are public) and may learn $g^k$ by eavesdropping as it is sent over the network.
 For the Diffie-Hellman key exchange to be secure, it must be computationally extremely difficult for the adversary to compute $g^{jk}$ given $g$, $g^j$, and $g^k$.
 
+% TODO for revision:
+% IES https://en.wikipedia.org/wiki/Integrated_Encryption_Scheme
+% DHIES https://www.cs.ucdavis.edu/~rogaway/papers/dhies.pdf
+% KEM https://words.filippo.io/dispatches/post-quantum-age/
+
 \subsection{Security properties of groups}\label{sec:cdh-ddh}
 
 The Diffie-Hellman protocol is secure if the following assumptions are true (where $i$, $j$ and $k$ are chosen uniformly at random from $\mathbb{Z}_p$ for sufficiently large $p$):
@@ -1374,11 +1379,33 @@ For future work it would be interesting to expand this discussion to other commo
 The Ristretto255 prime-order group~\cite{Ristretto255}, which eliminates the cofactor of Curve25519, would also be interesting to discuss.
 I believe that by carefully studying existing implementations of cryptographic algorithms, and by analysing in detail what makes them correct, we can gain a deeper understanding of cryptography in general and improve the quality of implementations of cryptographic protocols.
 
+% This paper, ported to Rust https://github.com/mikayla-maki/tweet_nacl_rust
+
+% Other things to look at: NIST P-256 curve; Ed25519; secp256k1 ECDSA (bitcoin); petlib https://petlib.readthedocs.io/en/latest/
+% Constant-time NIST curves implementation https://twitter.com/FiloSottile/status/1525133270479929344
+% Deterministic ECDSA https://datatracker.ietf.org/doc/html/rfc6979
+% Deterministic with additional randomness https://datatracker.ietf.org/doc/html/draft-mattsson-cfrg-det-sigs-with-noise-04
+% Breaking ECDSA with less than one bit of nonce leakage https://eprint.iacr.org/2020/615
+
+% Ed25519 to Curve25519 conversion https://blog.filippo.io/using-ed25519-keys-for-encryption/
+% edwards25519 decoding formulas https://buttondown.email/cryptography-dispatches/archive/cryptography-dispatches-re-deriving-the/
+% Edwards curves https://link.springer.com/chapter/10.1007/978-3-540-76900-2_3
+% EC-KCDSA https://github.com/trevorbernard/curve25519-java/blob/master/src/main/java/djb/Curve25519.java
+% https://soatok.blog/2022/05/19/guidance-for-choosing-an-elliptic-curve-signature-algorithm-in-2022/
+% Ristretto255 https://ietf.org/id/draft-irtf-cfrg-ristretto255-00.html
+% Problems with cofactors https://eprint.iacr.org/2019/526.pdf
+
+% A graduate course in applied cryptography https://toc.cryptobook.us/
+% (Chapter 15 introduces pairing-based elliptic curve cryptography)
+% Another course: https://intensecrypto.org/public/index.html
+
 % Twist security https://safecurves.cr.yp.to/twist.html
 
 % Ed25519 clamping https://twitter.com/FiloSottile/status/1403651113665110016
 % Discussion of clamping https://twitter.com/Sc00bzT/status/1270331532490747904
 % More on clamping https://www.jcraige.com/an-explainer-on-ed25519-clamping
+
+% The Rust cryptography ecosystem: https://kerkour.com/blog/rust-cryptography-ecosystem/
 
 % Google's implementation of Curve25519
 % https://github.com/google/tink/blob/master/java_src/src/main/java/com/google/crypto/tink/subtle/Curve25519.java
@@ -1386,24 +1413,34 @@ I believe that by carefully studying existing implementations of cryptographic a
 % uses the word "limbs" to refer to what I call "elements"
 % curve25519 paper calls them "coefficients", and 2^16 the "radix"
 
+% Vectorized montgomery ladder: https://eprint.iacr.org/2020/378
+% Curve25519 on FPGA: https://dl.acm.org/doi/10.1145/3312742
+% https://www.bunniestudios.com/blog/?p=6140
+% "digits are your fingers, limbs (like your arms) hold multiple digits"
+
 % Synthesising formally verified field arithmetic:
 % https://twitter.com/FiloSottile/status/1388374868131987459
 % https://github.com/mit-plv/fiat-crypto
 % http://adam.chlipala.net/papers/FiatCryptoSP19/FiatCryptoSP19.pdf
+% https://words.filippo.io/dispatches/wide-reduction/
 
 % The dangers of not using constant-time arithmetic: https://eprint.iacr.org/2017/806.pdf
+% Timing side-channel attack on base64 decoding: https://arxiv.org/pdf/2108.04600.pdf
+% Side-channel even against constant-time code https://www.hertzbleed.com/
+% https://ellipticnews.wordpress.com/2022/06/14/hertzbleed-attack/
 
 % Constant-time Euclid's algorithm: https://gcd.cr.yp.to/
 % https://twitter.com/pwuille/status/1360347812588707840
 % https://eprint.iacr.org/2021/549
 
+% Survey of use of constant-time algorithms: https://eprint.iacr.org/2021/1650.pdf
+% Constant-time in BearSSL https://www.bearssl.org/constanttime.html
+
 % Optimised addition chains for field inversion based on Fermat's little theorem:
 % https://github.com/mmcloughlin/addchain
 
-% Other things to look at: NIST P-256 curve; Ed25519; secp256k1 ECDSA (bitcoin); petlib https://petlib.readthedocs.io/en/latest/
-% edwards25519 decoding formulas https://buttondown.email/cryptography-dispatches/archive/cryptography-dispatches-re-deriving-the/
-% EC-KCDSA https://github.com/trevorbernard/curve25519-java/blob/master/src/main/java/djb/Curve25519.java
-% Ristretto255 https://ietf.org/id/draft-irtf-cfrg-ristretto255-00.html
+% EcGFp5: a specialised elliptic curve for STARK proofs https://github.com/pornin/ecgfp5/blob/main/doc/ecgfp5.pdf
+% (uses field GF(p^5) where p is a 64-bit prime)
 
 % Prefer "machine in the middle" or "person in the middle" over "man in the middle"
 
@@ -1412,6 +1449,8 @@ I believe that by carefully studying existing implementations of cryptographic a
 % https://eprint.iacr.org/2018/987
 % FROST: https://eprint.iacr.org/2020/852 https://twitter.com/veorq/status/1370292261720842240
 
+% Comparison of PAKEs by Feng Hao (author of J-PAKE): https://www.youtube.com/watch?v=ubiObUDGVng
+% also table 1 in https://eprint.iacr.org/2021/839.pdf
 % PAKE, such as https://github.com/jedisct1/cpace or socialist millionaire protocol or J-PAKE
 % https://en.wikipedia.org/wiki/Password_Authenticated_Key_Exchange_by_Juggling
 % https://tools.ietf.org/id/draft-irtf-cfrg-spake2-10.html
@@ -1420,26 +1459,29 @@ I believe that by carefully studying existing implementations of cryptographic a
 % Attack on SPAKE2 https://redrocket.club/posts/croc/
 % https://emilymstark.com/2021/02/01/padding-partitioning-oracles-and-another-hot-take-on-pakes.html
 
+% OPAQUE https://www.iacr.org/archive/eurocrypt2018/10822359/10822359.pdf
+% OPAQUE DH-OPRF https://datatracker.ietf.org/doc/html/draft-krawczyk-cfrg-opaque-03
+% Implementation used for WhatsApp e2e encrypted backups https://crates.io/crates/opaque-ke
+
 % Anonymous credentials https://eprint.iacr.org/2019/460.pdf
 
 % Elligator
 % Blinding (as used e.g. in Sphinx)
 % If this is going to be a textbook, add more examples and exercises
 
-% Zero-knowledge proofs
-% ZCash specification https://zips.z.cash/protocol/protocol.pdf
+% Zero-knowledge proofs / SNARKs
 % Notes on zero-knowledge proofs https://www.notion.so/martinkl/Zero-knowledge-proofs-SNARKs-zkSNARKs-927756c7122948439079f4d41794104f
-% Bulletproofs ZKP https://crypto.stanford.edu/bulletproofs/
-% Supersonic ZKP https://web.archive.org/web/20200920083031/http://eprint.iacr.org/2019/1229
-% https://github.com/arkworks-rs/snark
-% https://twitter.com/JoshuaWBaron/status/1384217010419101697
 
 % Pairing
+% BLS12-381 curve is used for zero-knowledge proofs e.g. in Zcash, Eth2 https://hackmd.io/@benjaminion/bls12-381
 % https://crypto.stanford.edu/pbc/notes/elliptic/
 % https://crypto.stanford.edu/pbc/notes/ep/
 % https://crypto.stanford.edu/pbc/
 % https://tools.ietf.org/html/draft-irtf-cfrg-bls-signature-04
 % Bugs in pairing-based BLS signatures https://eprint.iacr.org/2021/323.pdf
+% BLS signatures are used in Wendy BFT protocol https://eprint.iacr.org/2021/1308.pdf
+% Identity-Based Encryption using pairing https://crypto.stanford.edu/~dabo/papers/bfibe.pdf
+% https://eprint.iacr.org/2006/199.pdf
 
 % Assembly: try this? https://github.com/mmcloughlin/avo
 
