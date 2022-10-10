@@ -1281,8 +1281,9 @@ Moreover, it uses \verb|e| and \verb|f| as temporary variables.
 In the code of \autoref{code:scalarmult}, variables are reused.
 For better readability, we give a new name to each variable assignment in the following breakdown of the operations.
 The 18 arithmetic operations in the Montgomery ladder loop (10 multiplications/squarings and 8 additions/subtractions) compute the following expressions:
-\begingroup
-\allowdisplaybreaks
+\newpage
+%\begingroup
+%\allowdisplaybreaks
 \begin{align*}
     & \texttt{fadd(e, a, c);} & v_1    &= a + c \\
     & \texttt{fsub(a, a, c);} & v_2    &= a - c \\
@@ -1305,7 +1306,7 @@ The 18 arithmetic operations in the Montgomery ladder loop (10 multiplications/s
     & \texttt{fmul(d, b, x);} & v_{17} &= v_{11} \cdot x &&= 4x\,(ad - bc)^2 \\
     & \texttt{fmul(b, e, e);} & v_{18} &= v_9^2          &&= 4\,(ab - cd)^2
 \end{align*}
-\endgroup
+%\endgroup
 
 Let $a = X_i$, $b = X_{i+1}$, $c = Z_i$, $d = Z_{i+1}$, and $x = x_P$ at the start of a loop iteration.
 Further let \verb|bit| be 0, so the \verb|swap25519| operations have no effect.
